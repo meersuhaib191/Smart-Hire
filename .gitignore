@@ -1,0 +1,24 @@
+# Backend dependencies
+backend/node_modules/
+
+# Frontend dependencies
+frontend/node_modules/
+
+# Environment files
+backend/.env
+
+# Uploads folder
+backend/uploads/
+
+# Build output
+frontend/dist/
+
+# Logs
+backend/logs/
+
+# Vite cache
+frontend/.vite/
+
+# System files
+.DS_Store
+Thumbs.db
