@@ -147,8 +147,6 @@ Profile pages
 🤝 Contributing
 Feel free to open issues or pull requests.
 
-📜 License
-This project is licensed under the MIT License.
 
 ⭐ Support
 If you like this project, hit the ⭐ button on GitHub!
