@@ -1,30 +1,22 @@
+// src/middleware/upload.js
 import multer from "multer";
 import path from "path";
-import fs from "fs";
-
-const uploadDir = path.join(process.cwd(), "uploads");
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir);
-}
+import { fileURLToPath } from "url";
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadDir);
+  destination: function (req, file, cb) {
+    cb(null, path.join(process.cwd(), "uploads", "resumes"));
   },
-  filename: (req, file, cb) => {
-    const unique = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, unique + path.extname(file.originalname));
+  filename: function (req, file, cb) {
+    const ext = path.extname(file.originalname);
+    const name = `${Date.now()}-${Math.floor(Math.random() * 1e9)}${ext}`;
+    cb(null, name);
   },
 });
 
 export const upload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    const allowed = [".pdf", ".doc", ".docx"];
-    if (!allowed.includes(path.extname(file.originalname).toLowerCase())) {
-      return cb(new Error("Only PDF/DOC/DOCX allowed"));
-    }
-    cb(null, true);
-  },
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
 });

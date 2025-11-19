@@ -34,6 +34,8 @@ app.use("/api/applications", applicationRoutes);
 app.get("/", (req, res) => {
   res.send("SmartHire API is running...");
 });
+app.use("/uploads", express.static("uploads"));
+
 
 // Start server
 const PORT = process.env.PORT || 5000;

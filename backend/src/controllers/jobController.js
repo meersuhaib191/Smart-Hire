@@ -10,7 +10,7 @@ import {
 export const postJob = (req, res) => {
   const jobData = {
     ...req.body,
-    postedBy: req.user.id
+    recruiter_id: req.user.id
   };
 
   createJob(jobData, (err, result) => {
@@ -23,13 +23,6 @@ export const postJob = (req, res) => {
   });
 };
 
-export const getJobs = (req, res) => {
-  getAllJobs((err, results) => {
-    if (err) return res.status(500).json({ message: "DB Error", err });
-    res.json(results);
-  });
-};
-
 export const getMyJobs = (req, res) => {
   getJobsByRecruiter(req.user.id, (err, results) => {
     if (err) return res.status(500).json({ message: "DB Error", err });
@@ -39,28 +32,30 @@ export const getMyJobs = (req, res) => {
 
 export const getJob = (req, res) => {
   const jobId = req.params.id;
+
   getJobById(jobId, (err, results) => {
     if (err) return res.status(500).json({ message: "DB Error", err });
-    if (results.length === 0) return res.status(404).json({ message: "Job not found" });
+
+    if (results.length === 0)
+      return res.status(404).json({ message: "Job not found" });
+
     res.json(results[0]);
   });
 };
 
 export const editJob = (req, res) => {
   const jobId = req.params.id;
-  const recruiterId = req.user.id;
 
-  // Verify job ownership
   getJobById(jobId, (err, results) => {
     if (err) return res.status(500).json({ message: "DB Error", err });
-    if (results.length === 0) return res.status(404).json({ message: "Job not found" });
+    if (results.length === 0)
+      return res.status(404).json({ message: "Job not found" });
 
-    if (results[0].postedBy !== recruiterId) {
+    if (results[0].recruiter_id !== req.user.id)
       return res.status(403).json({ message: "Unauthorized" });
-    }
 
-    updateJob(req.body, jobId, (updateErr) => {
-      if (updateErr) return res.status(500).json({ message: "DB Error", updateErr });
+    updateJob(req.body, jobId, (err2) => {
+      if (err2) return res.status(500).json({ message: "DB Error", err2 });
 
       res.json({ message: "Job updated successfully" });
     });
@@ -69,18 +64,17 @@ export const editJob = (req, res) => {
 
 export const removeJob = (req, res) => {
   const jobId = req.params.id;
-  const recruiterId = req.user.id;
 
   getJobById(jobId, (err, results) => {
     if (err) return res.status(500).json({ message: "DB Error", err });
-    if (results.length === 0) return res.status(404).json({ message: "Job not found" });
+    if (results.length === 0)
+      return res.status(404).json({ message: "Job not found" });
 
-    if (results[0].postedBy !== recruiterId) {
+    if (results[0].recruiter_id !== req.user.id)
       return res.status(403).json({ message: "Unauthorized" });
-    }
 
-    deleteJob(jobId, (deleteErr) => {
-      if (deleteErr) return res.status(500).json({ message: "DB Error", deleteErr });
+    deleteJob(jobId, (err2) => {
+      if (err2) return res.status(500).json({ message: "DB Error", err2 });
 
       res.json({ message: "Job deleted successfully" });
     });
