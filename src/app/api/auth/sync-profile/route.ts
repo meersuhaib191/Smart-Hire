@@ -16,6 +16,10 @@ const mapRoleToDbEnum = (role: Role) => {
   }
 };
 
+const isMissingUsersColumnError = (message?: string) =>
+  (message || "").includes("Could not find the 'is_profile_complete' column") ||
+  (message || "").includes("Could not find the 'profile' column");
+
 export async function POST(request: Request) {
   try {
     const { supabaseUrl, supabaseKey: anonKey } = getSupabaseServerEnv();
@@ -42,6 +46,8 @@ export async function POST(request: Request) {
     const email = payload?.email as string;
     const role = payload?.role as Role;
     const name = payload?.name as string;
+    const hasIsProfileComplete = typeof payload?.isProfileComplete === "boolean";
+    const isProfileComplete = hasIsProfileComplete ? Boolean(payload?.isProfileComplete) : undefined;
 
     if (!userId || !email || !role || !name) {
       return NextResponse.json({ error: "Missing required payload fields." }, { status: 400 });
@@ -63,24 +69,49 @@ export async function POST(request: Request) {
       global: { headers: { Authorization: `Bearer ${accessToken}` } },
     });
 
-    const rowUsers = {
+    const rowUsers: {
+      id: string;
+      email: string;
+      role: string;
+      is_profile_complete?: boolean;
+    } = {
       id: userId,
       email,
       role: mapRoleToDbEnum(role),
     };
+    if (typeof isProfileComplete === "boolean") {
+      rowUsers.is_profile_complete = isProfileComplete;
+    }
     const rowProfile = {
       user_id: userId,
       full_name: name,
     };
 
     let usersError = (await userClient.from("users").upsert(rowUsers, { onConflict: "id" })).error;
-    let profilesError = (await userClient.from("user_profiles").upsert(rowProfile, { onConflict: "user_id" }))
-      .error;
+    if (usersError && isMissingUsersColumnError(usersError.message)) {
+      const fallbackUsersRow = {
+        id: userId,
+        email,
+        role: mapRoleToDbEnum(role),
+      };
+      usersError = (await userClient.from("users").upsert(fallbackUsersRow, { onConflict: "id" })).error;
+    }
+    let profilesError =
+      usersError ? usersError : (await userClient.from("user_profiles").upsert(rowProfile, { onConflict: "user_id" })).error;
 
     if ((usersError || profilesError) && serviceRoleKey) {
       const admin = createClient(supabaseUrl, serviceRoleKey);
       usersError = (await admin.from("users").upsert(rowUsers, { onConflict: "id" })).error;
-      profilesError = (await admin.from("user_profiles").upsert(rowProfile, { onConflict: "user_id" })).error;
+      if (usersError && isMissingUsersColumnError(usersError.message)) {
+        const fallbackUsersRow = {
+          id: userId,
+          email,
+          role: mapRoleToDbEnum(role),
+        };
+        usersError = (await admin.from("users").upsert(fallbackUsersRow, { onConflict: "id" })).error;
+      }
+      profilesError =
+        usersError ? usersError : (await admin.from("user_profiles").upsert(rowProfile, { onConflict: "user_id" })).error;
     }
 
     if (usersError || profilesError) {

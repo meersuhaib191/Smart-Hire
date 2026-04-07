@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireAuthUser } from '@/server/auth/session';
 
 // Initialize Supabase Client (Assume env vars are set)
 const projectId = process.env.NEXT_PUBLIC_SUPABASE_PROJECT_ID;
@@ -14,6 +15,7 @@ const supabaseAnonKey =
         : process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY || '';
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseAnonKey;
 const supabase = createClient(supabaseUrl, supabaseKey);
+const aiBackendUrl = (process.env.AI_BACKEND_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
 
 export async function POST(request: Request) {
     try {
@@ -27,10 +29,13 @@ export async function POST(request: Request) {
         const formData = await request.formData();
         const resumeFile = formData.get('resume') as File;
         const jobId = formData.get('job_id') as string;
-        const applicantName = formData.get('applicant_name') as string;
-        const applicantEmail = formData.get('applicant_email') as string;
-        if (!resumeFile || !jobId || !applicantName) {
+        if (!resumeFile || !jobId) {
             return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+        }
+
+        const authUser = await requireAuthUser();
+        if (!authUser.email) {
+            return NextResponse.json({ error: "Authenticated user email not found." }, { status: 400 });
         }
 
         const { data: jobRow, error: jobLookupError } = await supabase
@@ -54,7 +59,7 @@ export async function POST(request: Request) {
         let aiResults = { score: 0, matched_skills: [], missing_skills: [] };
 
         try {
-            const aiResponse = await fetch('http://127.0.0.1:8000/analyze-resume', {
+            const aiResponse = await fetch(`${aiBackendUrl}/analyze-resume`, {
                 method: 'POST',
                 body: aiFormData,
             });
@@ -76,30 +81,26 @@ export async function POST(request: Request) {
 
         // 3. Save application using current schema:
         // applications(job_id, user_id, resume_snapshot_url, current_stage, ...)
-        const { data: existingUser, error: userLookupError } = await supabase
+        const roleRaw = String(authUser.user_metadata?.role || '').toUpperCase();
+        const dbRole = roleRaw === 'HR' ? 'HR' : roleRaw === 'PLATFORM_ADMIN' ? 'PLATFORM_ADMIN' : 'APPLICANT';
+        const { error: ensureUserError } = await supabase
             .from('users')
-            .select('id')
-            .eq('email', applicantEmail)
-            .maybeSingle();
-
-        if (userLookupError) {
+            .upsert(
+                {
+                    id: authUser.id,
+                    email: authUser.email,
+                    role: dbRole,
+                },
+                { onConflict: 'id' }
+            );
+        if (ensureUserError) {
             return NextResponse.json(
                 {
-                    error: 'Failed to validate applicant against Supabase users.',
-                    details: userLookupError.message,
+                    error: 'Failed to initialize applicant profile in database.',
+                    details: ensureUserError.message,
                     ats_analysis: aiResults
                 },
                 { status: 500 }
-            );
-        }
-
-        if (!existingUser) {
-            return NextResponse.json(
-                {
-                    error: 'No user found for this email. Please register/login first so your user exists in Supabase.',
-                    ats_analysis: aiResults
-                },
-                { status: 400 }
             );
         }
 
@@ -108,7 +109,7 @@ export async function POST(request: Request) {
             .insert([
                 {
                     job_id: jobId,
-                    user_id: existingUser.id,
+                    user_id: authUser.id,
                     resume_snapshot_url: null
                 }
             ])
@@ -116,6 +117,16 @@ export async function POST(request: Request) {
             .single();
 
         if (dbError) {
+            if (dbError.code === '23505') {
+                return NextResponse.json(
+                    {
+                        error: 'You have already applied to this job.',
+                        details: dbError.message,
+                        ats_analysis: aiResults
+                    },
+                    { status: 409 }
+                );
+            }
             return NextResponse.json(
                 {
                     error: 'Failed to save application in Supabase.',
@@ -134,6 +145,9 @@ export async function POST(request: Request) {
         });
 
     } catch (error) {
+        if (error instanceof Error && error.message === 'Unauthorized') {
+            return NextResponse.json({ error: 'Please log in before applying.' }, { status: 401 });
+        }
         console.error("Error processing application:", error);
         return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }

@@ -1,14 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
 
 export default function ApplyPage({ params }: { params: { id: string } }) {
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [aiResult, setAiResult] = useState<{
         score?: number;
         matched_skills?: string[];
@@ -18,6 +20,7 @@ export default function ApplyPage({ params }: { params: { id: string } }) {
     async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
         setLoading(true);
+        setErrorMessage(null);
 
         const formData = new FormData(e.currentTarget);
         formData.append("job_id", params.id);
@@ -28,14 +31,19 @@ export default function ApplyPage({ params }: { params: { id: string } }) {
                 body: formData,
             });
 
+            const data = await res.json().catch(() => ({}));
             if (res.ok) {
-                const data = await res.json();
                 setAiResult(data.ats_analysis);
                 setSuccess(true);
             } else {
-                console.error("Failed to submit");
+                const message = data?.error || "Failed to submit application";
+                setErrorMessage(message);
+                toast.error(message);
+                console.error("Failed to submit:", data);
             }
         } catch (err) {
+            setErrorMessage("Network error while submitting application.");
+            toast.error("Network error while submitting application.");
             console.error(err);
         } finally {
             setLoading(false);
@@ -51,11 +59,17 @@ export default function ApplyPage({ params }: { params: { id: string } }) {
                 {aiResult && (
                     <div className="mt-8 p-6 bg-muted rounded-lg text-left">
                         <h2 className="text-xl font-semibold mb-2">AI Match Analysis</h2>
+                        {(() => {
+                            const score = aiResult.score ?? 0;
+                            const scoreClass = score >= 70 ? "text-green-500" : score >= 40 ? "text-yellow-500" : "text-red-500";
+                            return (
                         <div className="text-5xl font-bold mb-4">
-                            <span className={aiResult.score >= 70 ? "text-green-500" : aiResult.score >= 40 ? "text-yellow-500" : "text-red-500"}>
-                                {aiResult.score?.toFixed(1) || "0"}%
+                            <span className={scoreClass}>
+                                {score.toFixed(1)}%
                             </span>
                         </div>
+                            );
+                        })()}
 
                         <div className="grid grid-cols-2 gap-4 mt-6">
                             <div>
@@ -115,6 +129,7 @@ export default function ApplyPage({ params }: { params: { id: string } }) {
                 <Button type="submit" className="w-full" disabled={loading}>
                     {loading ? "Analyzing Resume..." : "Submit Application"}
                 </Button>
+                {errorMessage ? <p className="text-sm text-red-600">{errorMessage}</p> : null}
             </form>
         </div>
     );

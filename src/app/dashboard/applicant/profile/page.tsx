@@ -1,5 +1,5 @@
-import { ProfilePage } from "@/pages_migrated/applicant/ProfilePage";
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return <ProfilePage />;
+  redirect("/applicant/profile");
 }

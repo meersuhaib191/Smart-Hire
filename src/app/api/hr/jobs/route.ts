@@ -8,7 +8,7 @@ type CreateJobBody = {
   title: string;
   description: string;
   experience_required: number;
-  company_id: string;
+  company_id?: string;
   skills: string[];
   weights: {
     ats_weight: number;
@@ -17,6 +17,52 @@ type CreateJobBody = {
     interview_weight: number;
   };
 };
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+async function resolveCompanyId(
+  admin: ReturnType<typeof createSupabaseAdmin>,
+  user: Awaited<ReturnType<typeof requireAuthUser>>,
+  companyHint?: string
+) {
+  const hint = (companyHint || "").trim();
+  const metadataCompany = String(user.user_metadata?.company || "").trim();
+  const profileCompany = String((user.user_metadata?.profile as { companyName?: string } | undefined)?.companyName || "").trim();
+  const candidate = hint || metadataCompany || profileCompany;
+
+  if (!candidate) {
+    return { companyId: "", error: "Set your company in HR profile before posting jobs." };
+  }
+
+  if (UUID_REGEX.test(candidate)) {
+    const { data: byId, error: byIdError } = await admin
+      .from("companies")
+      .select("id")
+      .eq("id", candidate)
+      .maybeSingle();
+    if (byIdError) return { companyId: "", error: byIdError.message };
+    if (byId?.id) return { companyId: byId.id, error: "" };
+    return { companyId: "", error: "Provided company id is invalid." };
+  }
+
+  const { data: byName, error: byNameError } = await admin
+    .from("companies")
+    .select("id")
+    .eq("name", candidate)
+    .maybeSingle();
+  if (byNameError) return { companyId: "", error: byNameError.message };
+  if (byName?.id) return { companyId: byName.id, error: "" };
+
+  const { data: created, error: createError } = await admin
+    .from("companies")
+    .insert({ name: candidate, verified: false })
+    .select("id")
+    .single();
+  if (createError || !created?.id) {
+    return { companyId: "", error: createError?.message || "Failed to create company record." };
+  }
+  return { companyId: created.id, error: "" };
+}
 
 export async function GET() {
   try {
@@ -49,8 +95,8 @@ export async function POST(request: Request) {
     requireHr(user);
     const body = (await request.json()) as Partial<CreateJobBody>;
 
-    if (!body.title || !body.description || !body.company_id) {
-      return NextResponse.json({ error: "title, description and company_id are required." }, { status: 400 });
+    if (!body.title || !body.description) {
+      return NextResponse.json({ error: "title and description are required." }, { status: 400 });
     }
 
     const skills = body.skills || [];
@@ -70,13 +116,18 @@ export async function POST(request: Request) {
     }
 
     const admin = createSupabaseAdmin();
+    const { companyId, error: companyError } = await resolveCompanyId(admin, user, body.company_id);
+    if (!companyId) {
+      return NextResponse.json({ error: companyError || "Company is required." }, { status: 400 });
+    }
+
     const { data: job, error: jobError } = await admin
       .from("jobs")
       .insert({
         title: body.title,
         description: body.description,
         experience_required: body.experience_required || 0,
-        company_id: body.company_id,
+        company_id: companyId,
         status: "PUBLISHED",
       })
       .select("id, title")

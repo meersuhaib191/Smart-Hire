@@ -4,10 +4,16 @@ import { supabase } from '@/utils/supabase/client';
 
 
 export type UserRole = 'applicant' | 'hr' | 'admin';
+const normalizeRole = (raw?: string): UserRole => {
+  const value = (raw || '').toLowerCase();
+  if (value === 'hr') return 'hr';
+  if (value === 'admin' || value === 'platform_admin' || value === 'company_admin') return 'admin';
+  return 'applicant';
+};
 
 const syncUserProfileOnServer = async (
   accessToken: string,
-  payload: { userId: string; email: string; role: UserRole; name: string }
+  payload: { userId: string; email: string; role: UserRole; name: string; isProfileComplete?: boolean }
 ) => {
   const response = await fetch('/api/auth/sync-profile', {
     method: 'POST',
@@ -46,6 +52,7 @@ interface User {
   name: string;
   email: string;
   role: UserRole;
+  isProfileComplete?: boolean;
   avatar?: string;
   company?: string;
 }
@@ -100,12 +107,14 @@ export const useStore = create<AppState>((set) => ({
         throw new Error(toUserFriendlyAuthError(sessionError.message));
       }
 
-      const appRole = (user.user_metadata.role as UserRole) || 'applicant';
+      const appRole = normalizeRole(user.user_metadata.role as string);
+      const isProfileComplete = Boolean(user.user_metadata.isProfileComplete);
       await syncUserProfileOnServer(session.access_token, {
         userId: user.id,
         email: user.email!,
         role: appRole,
-        name: user.user_metadata.name || 'User'
+        name: user.user_metadata.name || 'User',
+        isProfileComplete,
       });
 
       set({
@@ -115,6 +124,7 @@ export const useStore = create<AppState>((set) => ({
           email: user.email!,
           name: user.user_metadata.name || 'User',
           role: appRole,
+          isProfileComplete,
           avatar: user.user_metadata.avatar,
           company: user.user_metadata.company
         }
@@ -166,23 +176,27 @@ export const useStore = create<AppState>((set) => ({
       }
 
       if (data.session?.access_token) {
+        const isProfileComplete = Boolean(createdAuthUser.user_metadata?.isProfileComplete);
         await syncUserProfileOnServer(data.session.access_token, {
           userId: createdAuthUser.id,
           email,
           role,
-          name
+          name,
+          isProfileComplete,
         });
       }
 
       if (data.session) {
         const user = data.session.user;
+        const appRole = normalizeRole(user.user_metadata.role as string);
         set({
           isAuthenticated: true,
           user: {
             id: user.id,
             email: user.email!,
             name: user.user_metadata.name,
-            role: user.user_metadata.role,
+            role: appRole,
+            isProfileComplete: Boolean(user.user_metadata.isProfileComplete),
             avatar: user.user_metadata.avatar
           }
         });
@@ -205,12 +219,14 @@ export const useStore = create<AppState>((set) => ({
     const { data: { session } } = await supabase.auth.getSession();
     if (session) {
       const user = session.user;
-      const appRole = (user.user_metadata.role as UserRole) || 'applicant';
+      const appRole = normalizeRole(user.user_metadata.role as string);
+      const isProfileComplete = Boolean(user.user_metadata.isProfileComplete);
       await syncUserProfileOnServer(session.access_token, {
         userId: user.id,
         email: user.email!,
         role: appRole,
-        name: user.user_metadata.name || 'User'
+        name: user.user_metadata.name || 'User',
+        isProfileComplete,
       });
 
       set({
@@ -220,6 +236,7 @@ export const useStore = create<AppState>((set) => ({
           email: user.email!,
           name: user.user_metadata.name || 'User',
           role: appRole,
+          isProfileComplete,
           avatar: user.user_metadata.avatar,
           company: user.user_metadata.company
         }

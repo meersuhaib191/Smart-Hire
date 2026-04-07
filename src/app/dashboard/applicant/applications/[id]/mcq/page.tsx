@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { PageLoadingSkeleton } from "@/components/ui/PageLoadingSkeleton";
 
 type Question = {
   id: string;
@@ -278,12 +280,14 @@ export default function McqPage() {
     router.push(`/dashboard/applicant/applications/${id}`);
   };
 
-  if (loading) return <p className="text-sm text-slate-500">Loading MCQ session...</p>;
+  if (loading) {
+    return <PageLoadingSkeleton />;
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <button type="button" onClick={goBackToApplication} className="text-sm text-slate-500 hover:text-slate-900">
+        <button type="button" onClick={goBackToApplication} className="text-sm font-medium text-slate-500 hover:text-slate-900">
           ← Back to Application
         </button>
         {!hasSubmitted ? (
@@ -291,11 +295,11 @@ export default function McqPage() {
         ) : null}
       </div>
 
-      <Card>
+      <Card className="rounded-2xl border-slate-200/80 shadow-sm">
         <CardHeader>
           <CardTitle>MCQ Assessment</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-4">
           {hasSubmitted && attempt ? (
             <div className="space-y-2">
               <p className="text-sm">Your attempt is already submitted.</p>
@@ -306,7 +310,7 @@ export default function McqPage() {
               {reviewAnswers.length > 0 ? (
                 <div className="space-y-3 pt-2">
                   {reviewAnswers.map((item, idx) => (
-                    <div key={item.questionId} className="rounded-md border p-3">
+                    <div key={item.questionId} className="rounded-xl border border-slate-200 p-3">
                       <p className="text-sm font-medium">
                         Q{idx + 1}. {item.questionText}
                       </p>
@@ -324,21 +328,28 @@ export default function McqPage() {
               </div>
             </div>
           ) : blockedByOtherTab ? (
-            <p className="text-sm text-red-600">
-              This MCQ is active in another tab. Return to that tab to continue, or close it and wait a few seconds.
-            </p>
+            <EmptyState
+              title="Assessment is active in another tab"
+              description="Return to that tab to continue, or close it and wait a few seconds."
+            />
           ) : hasExpired ? (
-            <p className="text-sm text-red-600">Session expired before submission. Please contact HR to reopen this stage.</p>
+            <EmptyState
+              title="Session expired before submission"
+              description="Please contact HR to reopen this stage."
+            />
           ) : questions.length === 0 ? (
-            <p className="text-sm text-slate-500">No MCQ questions available for this job yet.</p>
+            <EmptyState
+              title="No MCQ questions available yet"
+              description="This assessment has not been generated for the selected job."
+            />
           ) : (
             <>
-              <p className="text-sm text-slate-500">
+              <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
                 Answer all questions and submit once. Timer: {Math.floor(examSeconds / 60)} min. Your pipeline stage updates automatically.
               </p>
               <div className="space-y-4">
                 {questions.map((q, i) => (
-                  <div key={q.id} className="rounded-md border p-4 space-y-3">
+                  <div key={q.id} className="rounded-xl border border-slate-200 p-4 shadow-sm space-y-3">
                     <div className="flex items-center justify-between gap-2">
                       <p className="font-medium">
                         Q{i + 1}. {q.question_text}
@@ -347,7 +358,7 @@ export default function McqPage() {
                     </div>
                     <div className="space-y-2">
                       {q.options.map((option, idx) => (
-                        <label key={idx} className="flex items-center gap-2 text-sm">
+                        <label key={idx} className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm transition hover:bg-slate-50">
                           <input
                             type="radio"
                             name={`q-${q.id}`}

@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { CodingPage } from "@/pages_migrated/applicant/CodingPage";
+import { PageLoadingSkeleton } from "@/components/ui/PageLoadingSkeleton";
 
 export default async function Page({
   params,
@@ -8,7 +9,7 @@ export default async function Page({
 }) {
   const { id } = await params;
   return (
-    <Suspense fallback={<div className="p-8 text-slate-600">Loading editor…</div>}>
+    <Suspense fallback={<div className="p-8"><PageLoadingSkeleton /></div>}>
       <CodingPage challengeId={id} />
     </Suspense>
   );

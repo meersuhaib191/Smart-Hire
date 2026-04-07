@@ -22,17 +22,22 @@ const loadReviewAnswers = async (supabase: ReturnType<typeof createSupabaseAdmin
   type ReviewedRow = {
     selected_option: number;
     is_correct: boolean;
-    mcq_questions: { id: string; question_text: string; options: string[] } | null;
+    mcq_questions:
+      | { id: string; question_text: string; options: string[] }
+      | Array<{ id: string; question_text: string; options: string[] }>
+      | null;
   };
 
   return ((data || []) as ReviewedRow[])
-    .map((row) => ({
-      questionId: row.mcq_questions?.id || "",
-      questionText: row.mcq_questions?.question_text || "",
-      options: row.mcq_questions?.options || [],
+    .map((row) => {
+      const q = Array.isArray(row.mcq_questions) ? row.mcq_questions[0] : row.mcq_questions;
+      return {
+      questionId: q?.id || "",
+      questionText: q?.question_text || "",
+      options: q?.options || [],
       selectedOption: Number(row.selected_option),
       isCorrect: Boolean(row.is_correct),
-    }))
+    }})
     .filter((r) => r.questionId && r.questionText);
 };
 

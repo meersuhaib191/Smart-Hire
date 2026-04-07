@@ -1,13 +1,14 @@
 "use client";
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { formatDistanceToNow } from 'date-fns';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Search, MapPin, Briefcase, DollarSign, Filter, Star } from 'lucide-react';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { PageLoadingSkeleton } from '@/components/ui/PageLoadingSkeleton';
 
 type PublicJob = {
   id: string;
@@ -61,16 +62,22 @@ export const JobFeedPage = () => {
   }, [jobs, location, query, types]);
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex flex-col md:flex-row gap-8">
+    <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mb-8 flex flex-col gap-2">
+        <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Discover opportunities</h1>
+        <p className="text-sm text-slate-500">Find jobs matched to your skills and apply in one click.</p>
+      </div>
+
+      <div className="flex flex-col gap-6 lg:flex-row">
         {/* Filters Sidebar */}
-        <div className="w-full md:w-64 space-y-6">
-          <div className="flex items-center gap-2 font-semibold text-lg text-slate-900">
+        <div className="w-full space-y-6 lg:w-72">
+          <div className="flex items-center gap-2 text-lg font-semibold text-slate-900">
             <Filter size={20} />
             Filters
           </div>
           
-          <div className="space-y-4">
+          <Card className="rounded-2xl border-slate-200/80 shadow-sm">
+            <CardContent className="space-y-5 p-5">
             <div>
               <label className="text-sm font-medium text-slate-700 mb-2 block">Job Type</label>
               <div className="space-y-2">
@@ -108,12 +115,13 @@ export const JobFeedPage = () => {
                 <span>$200k+</span>
               </div>
             </div>
-          </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Job List */}
-        <div className="flex-1 space-y-6">
-          <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 flex gap-4">
+        <div className="flex-1 space-y-4">
+          <div className="grid gap-3 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm md:grid-cols-[1fr_220px_auto]">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-2.5 h-5 w-5 text-slate-400" />
               <Input
@@ -132,22 +140,18 @@ export const JobFeedPage = () => {
                 className="pl-10"
               />
             </div>
-            <Button variant="outline">{filteredJobs.length} results</Button>
+            <Button variant="outline" className="rounded-lg">{filteredJobs.length} results</Button>
           </div>
 
-          <div className="space-y-4">
-            {loading ? (
-              <p className="text-sm text-slate-500">Loading jobs...</p>
-            ) : filteredJobs.map((job) => (
-              <Card key={job.id} className="hover:shadow-md transition-shadow cursor-pointer border-slate-200">
+          <div className="space-y-3">
+            {loading ? <PageLoadingSkeleton /> : filteredJobs.map((job) => (
+              <Card key={job.id} className="rounded-2xl border-slate-200/80 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
                 <CardContent className="p-6">
                   <div className="flex items-start gap-4">
-                    <Image
-                      src={`https://ui-avatars.com/api/?name=${encodeURIComponent(job.company)}&background=6366f1&color=fff`}
+                    <img
+                      src={`https://ui-avatars.com/api/?name=${encodeURIComponent(job.company)}&background=111827&color=fff`}
                       alt={job.company}
-                      width={48}
-                      height={48}
-                      className="rounded-lg"
+                      className="h-12 w-12 rounded-xl object-cover"
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex justify-between items-start">
@@ -187,7 +191,7 @@ export const JobFeedPage = () => {
                     </div>
                     <div className="self-center">
                       <Link href={`/jobs/${job.id}/apply`}>
-                        <Button variant="outline">Apply</Button>
+                        <Button variant="outline" className="rounded-lg">Apply</Button>
                       </Link>
                     </div>
                   </div>
@@ -195,7 +199,10 @@ export const JobFeedPage = () => {
               </Card>
             ))}
             {!loading && filteredJobs.length === 0 && (
-              <p className="text-sm text-slate-500">No jobs match your filters.</p>
+              <EmptyState
+                title="No jobs match your filters."
+                description="Try removing a filter or broadening your search."
+              />
             )}
           </div>
         </div>

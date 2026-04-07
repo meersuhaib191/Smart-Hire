@@ -13,7 +13,9 @@ export async function extractResumeText(file: File): Promise<string> {
 
   if (mimeType.includes("pdf") || file.name.toLowerCase().endsWith(".pdf")) {
     const pdfModule = await import("pdf-parse");
-    const pdf = pdfModule.default;
+    const pdf =
+      (pdfModule as unknown as { default?: (input: Buffer) => Promise<{ text?: string }> }).default ??
+      (pdfModule as unknown as (input: Buffer) => Promise<{ text?: string }>);
     const parsed = await pdf(bytes);
     return normalizeText(parsed.text || "");
   }

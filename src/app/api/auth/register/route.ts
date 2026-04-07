@@ -26,6 +26,7 @@ export async function POST(request: Request) {
         data: {
           role: role as Role,
           name,
+          isProfileComplete: role === "admin",
         },
       },
     });

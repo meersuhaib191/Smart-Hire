@@ -86,9 +86,9 @@ console.log("Sum of 5 and 7 is:", sum(5, 7));
   };
 
   return (
-    <div className="h-[calc(100vh-4rem)] flex flex-col bg-slate-900 text-slate-300">
+    <div className="h-[calc(100vh-4rem)] flex flex-col bg-slate-950 text-slate-200">
       {/* Top Bar */}
-      <div className="h-14 bg-slate-800 border-b border-slate-700 flex items-center justify-between px-4">
+      <div className="h-14 border-b border-slate-800 bg-slate-900/95 backdrop-blur flex items-center justify-between px-4">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <h2 className="font-semibold text-white">1. Two Sum</h2>
@@ -96,9 +96,9 @@ console.log("Sum of 5 and 7 is:", sum(5, 7));
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 bg-slate-700 px-3 py-1.5 rounded text-sm">
+          <div className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm">
             <Clock size={16} />
-            <span>00:45:22</span>
+            <span>Timed Round</span>
           </div>
           <Button 
             size="sm" 
@@ -116,8 +116,8 @@ console.log("Sum of 5 and 7 is:", sum(5, 7));
       {/* Main Content */}
       <div className="flex flex-1 overflow-hidden">
         {/* Left Panel: Problem Description */}
-        <div className="w-[40%] flex flex-col border-r border-slate-700 bg-slate-900 overflow-y-auto">
-          <div className="flex border-b border-slate-700">
+        <div className="w-[40%] flex flex-col border-r border-slate-800 bg-slate-900 overflow-y-auto">
+          <div className="flex border-b border-slate-800">
             <button 
               className={`px-4 py-3 text-sm font-medium ${activeTab === 'problem' ? 'text-white border-b-2 border-indigo-500' : 'text-slate-400 hover:text-white'}`}
               onClick={() => setActiveTab('problem')}
@@ -174,7 +174,7 @@ console.log("Sum of 5 and 7 is:", sum(5, 7));
           </div>
         </div>
 
-        <div className="w-1 bg-slate-700" />
+        <div className="w-1 bg-slate-800" />
 
         {/* Right Panel: Code Editor & Console */}
         <div className="flex-1 flex flex-col">
@@ -188,10 +188,10 @@ console.log("Sum of 5 and 7 is:", sum(5, 7));
               </div>
             </div>
             
-            <div className="h-1 bg-slate-700" />
+            <div className="h-1 bg-slate-800" />
             
             <div className="flex-1 bg-slate-900 flex flex-col overflow-y-auto">
-               <div className="h-10 bg-slate-800 flex items-center px-4 border-b border-slate-700 justify-between">
+               <div className="h-10 bg-slate-900 flex items-center px-4 border-b border-slate-800 justify-between">
                   <span className="text-sm font-medium text-slate-300">Console</span>
                   <div className="flex gap-2">
                     <button className="text-xs text-slate-400 hover:text-white" onClick={() => setOutput(null)}>Clear</button>

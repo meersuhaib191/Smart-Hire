@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 
 type Detail = {
@@ -79,18 +79,18 @@ export default function Page() {
 
   return (
     <div className="space-y-6">
-      <Link href="/dashboard/applicant/applications" className="text-sm text-slate-500 hover:text-slate-900">
+      <Link href="/dashboard/applicant/applications" className="text-sm text-slate-500 transition hover:text-slate-900">
         ← Back
       </Link>
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">{data.application.jobs?.title || "Application"}</h1>
-          <p className="text-sm text-slate-500">Current pipeline: {step}</p>
+          <h1 className="text-3xl font-semibold tracking-tight text-slate-900">{data.application.jobs?.title || "Application"}</h1>
+          <p className="text-sm text-slate-500">Current pipeline step: {step}</p>
         </div>
         <Badge variant="secondary">{data.application.current_stage}</Badge>
       </div>
 
-      <Card>
+      <Card className="rounded-2xl border-slate-200/80 shadow-sm">
         <CardHeader>
           <CardTitle>Stage Results</CardTitle>
         </CardHeader>
@@ -105,7 +105,7 @@ export default function Page() {
       </Card>
 
       {step === "CODING" && data.codingChallenge ? (
-        <Card>
+        <Card className="rounded-2xl border-slate-200/80 shadow-sm">
           <CardHeader>
             <CardTitle>Coding Challenge</CardTitle>
           </CardHeader>
@@ -118,7 +118,7 @@ export default function Page() {
       ) : null}
 
       {step === "MCQ" ? (
-        <Card>
+        <Card className="rounded-2xl border-slate-200/80 shadow-sm">
           <CardHeader>
             <CardTitle>MCQ Assessment</CardTitle>
           </CardHeader>
@@ -131,7 +131,7 @@ export default function Page() {
       ) : null}
 
       {step === "INTERVIEW" ? (
-        <Card>
+        <Card className="rounded-2xl border-slate-200/80 shadow-sm">
           <CardHeader>
             <CardTitle>AI Interview</CardTitle>
           </CardHeader>
@@ -139,7 +139,7 @@ export default function Page() {
             <textarea
               value={interviewText}
               onChange={(e) => setInterviewText(e.target.value)}
-              className="w-full min-h-28 border rounded-md p-3"
+              className="w-full min-h-28 rounded-lg border border-slate-200 p-3 text-sm outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
               placeholder="Type your interview answer..."
             />
             <Button onClick={submitInterview}>Submit Interview Answer</Button>
@@ -148,7 +148,7 @@ export default function Page() {
       ) : null}
 
       {step === "COMPLETE" || data.stages.length >= 4 ? (
-        <Card>
+        <Card className="rounded-2xl border-slate-200/80 shadow-sm">
           <CardHeader>
             <CardTitle>Final Ranking</CardTitle>
           </CardHeader>

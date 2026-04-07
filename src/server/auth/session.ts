@@ -13,10 +13,15 @@ export async function requireAuthUser(): Promise<User> {
   return user;
 }
 
-export function getAppRole(user: User): "applicant" | "hr" | "admin" {
-  const raw = (user.user_metadata?.role as string) || "applicant";
-  if (raw === "hr" || raw === "admin" || raw === "applicant") return raw;
+export function normalizeRole(rawRole?: string): "applicant" | "hr" | "admin" {
+  const raw = (rawRole || "").toLowerCase();
+  if (raw === "hr") return "hr";
+  if (raw === "admin" || raw === "platform_admin" || raw === "company_admin") return "admin";
   return "applicant";
+}
+
+export function getAppRole(user: User): "applicant" | "hr" | "admin" {
+  return normalizeRole(user.user_metadata?.role as string);
 }
 
 export function requireHr(user: User) {

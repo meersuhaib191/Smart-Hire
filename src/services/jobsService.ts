@@ -28,7 +28,8 @@ export const createJob = async (jobInput: JobInput, companyId: string) => {
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-        throw new Error(payload?.error || 'Failed to create job');
+        const detail = payload?.detail ? ` (${payload.detail})` : '';
+        throw new Error((payload?.error || 'Failed to create job') + detail);
     }
     return payload.jobId as string;
 };

@@ -54,6 +54,11 @@ export const JobCreationForm = () => {
             interview_weight: 0.0,
         }
     });
+    const atsWeight = Number(form.watch("ats_weight") ?? 0);
+    const mcqWeight = Number(form.watch("mcq_weight") ?? 0);
+    const codingWeight = Number(form.watch("coding_weight") ?? 0);
+    const interviewWeight = Number(form.watch("interview_weight") ?? 0);
+    const totalWeight = atsWeight + mcqWeight + codingWeight + interviewWeight;
 
     const addSkill = () => {
         if (currentSkill.trim() && !skills.includes(currentSkill.trim())) {
@@ -235,11 +240,11 @@ export const JobCreationForm = () => {
                         {/* Live Sum Counter */}
                         <div className="p-3 bg-slate-50 border rounded-md flex justify-between items-center text-sm">
                             <span className="font-medium text-slate-700">Total Weight Sum:</span>
-                            <span className={`font-bold ${Math.abs(form.watch("ats_weight") + form.watch("mcq_weight") + form.watch("coding_weight") + form.watch("interview_weight") - 1) < 0.01
+                            <span className={`font-bold ${Math.abs(totalWeight - 1) < 0.01
                                 ? "text-success-600"
                                 : "text-red-500"
                                 }`}>
-                                {(form.watch("ats_weight") + form.watch("mcq_weight") + form.watch("coding_weight") + form.watch("interview_weight")).toFixed(2)} / 1.00
+                                {totalWeight.toFixed(2)} / 1.00
                             </span>
                         </div>
                     </div>

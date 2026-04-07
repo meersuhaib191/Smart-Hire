@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/Card";
 import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/Badge";
 import {
   Select,
   SelectContent,
@@ -11,6 +11,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { PageLoadingSkeleton } from "@/components/ui/PageLoadingSkeleton";
 
 type JobRow = { id: string; title: string };
 
@@ -72,13 +74,13 @@ export default function ApplicantsDashboard() {
   };
 
   return (
-    <div className="container mx-auto p-8 space-y-6">
+    <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Applicant Tracking</h1>
-          <p className="text-muted-foreground mt-2">
+          <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Candidate Pipeline</h1>
+          <p className="mt-2 text-sm text-slate-500">
             Pipeline + stage scores for{" "}
-            <span className="font-medium text-foreground">{selectedTitle}</span>
+            <span className="font-medium text-slate-900">{selectedTitle}</span>
           </p>
         </div>
         <div className="w-full max-w-sm">
@@ -101,15 +103,13 @@ export default function ApplicantsDashboard() {
         </div>
       </div>
 
-      {loadingCandidates ? (
-        <p className="text-sm text-muted-foreground">Loading candidates…</p>
-      ) : null}
+      {loadingCandidates ? <PageLoadingSkeleton /> : null}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {candidates.map((c) => {
           const score = displayScore(c);
           return (
-            <Card key={c.applicationId} className="flex flex-col">
+            <Card key={c.applicationId} className="flex flex-col rounded-2xl border-slate-200/80 shadow-sm transition hover:shadow-md">
               <CardHeader className="pb-4">
                 <div className="flex justify-between items-start gap-2">
                   <div className="min-w-0">
@@ -118,7 +118,7 @@ export default function ApplicantsDashboard() {
                       {c.pipelineStep} · Rank #{c.rankPosition ?? "—"}
                     </CardDescription>
                   </div>
-                  <div className="text-right shrink-0">
+                  <div className="shrink-0 text-right">
                     <span
                       className={`text-2xl font-bold ${
                         score >= 80 ? "text-green-500" : score >= 50 ? "text-yellow-500" : "text-red-500"
@@ -135,13 +135,13 @@ export default function ApplicantsDashboard() {
               <CardContent className="flex-1 space-y-4">
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span>Score</span>
+                    <span className="text-slate-600">Score</span>
                     <span className="font-medium">{score.toFixed(0)}</span>
                   </div>
                   <Progress value={Math.min(100, Math.max(0, score))} className="h-2" />
                 </div>
 
-                <div className="flex flex-wrap gap-1">
+                <div className="flex flex-wrap gap-1.5">
                   {c.stages.map((s) => (
                     <Badge key={s.stage_type} variant="secondary">
                       {s.stage_type}: {Number(s.score).toFixed(0)}
@@ -156,7 +156,10 @@ export default function ApplicantsDashboard() {
       </div>
 
       {!loadingCandidates && jobId && candidates.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No applications for this job yet.</p>
+        <EmptyState
+          title="No applications for this job yet."
+          description="Once candidates apply, their stage breakdown appears here."
+        />
       ) : null}
     </div>
   );
