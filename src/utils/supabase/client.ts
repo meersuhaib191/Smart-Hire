@@ -1,9 +1,9 @@
 "use client";
 
-import { createClient } from '@supabase/supabase-js';
-import { projectId, publicAnonKey } from '@/utils/supabase/info';
+import { createBrowserClient } from "@supabase/ssr";
+import { supabaseUrl, publicAnonKey } from "@/utils/supabase/info";
 
-const supabaseUrl = `https://${projectId}.supabase.co`;
-const supabaseKey = publicAnonKey;
+export const createClient = () => createBrowserClient(supabaseUrl, publicAnonKey);
 
-export const supabase = createClient(supabaseUrl, supabaseKey);
+// Backward compatibility for existing imports in the app.
+export const supabase = createClient();
