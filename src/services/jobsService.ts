@@ -14,48 +14,23 @@ export interface JobInput {
 }
 
 export const createJob = async (jobInput: JobInput, companyId: string) => {
-    // 1. Insert Job
-    const { data: job, error: jobError } = await supabase
-        .from('jobs')
-        .insert({
+    const response = await fetch('/api/hr/jobs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
             title: jobInput.title,
             description: jobInput.description,
             experience_required: jobInput.experience_required,
             company_id: companyId,
-            status: 'PUBLISHED'
-        })
-        .select('id')
-        .single();
-
-    if (jobError) throw jobError;
-
-    // 2. Insert Skills
-    if (jobInput.skills.length > 0) {
-        const skillsToInsert = jobInput.skills.map((skill) => ({
-            job_id: job.id,
-            skill_name: skill
-        }));
-        const { error: skillsError } = await supabase
-            .from('job_skills')
-            .insert(skillsToInsert);
-
-        if (skillsError) throw skillsError;
+            skills: jobInput.skills,
+            weights: jobInput.weights,
+        }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        throw new Error(payload?.error || 'Failed to create job');
     }
-
-    // 3. Insert Weights
-    const { error: weightsError } = await supabase
-        .from('job_weights')
-        .insert({
-            job_id: job.id,
-            ats_weight: jobInput.weights.ats_weight,
-            mcq_weight: jobInput.weights.mcq_weight,
-            coding_weight: jobInput.weights.coding_weight,
-            interview_weight: jobInput.weights.interview_weight
-        });
-
-    if (weightsError) throw weightsError;
-
-    return job.id;
+    return payload.jobId as string;
 };
 
 export const getJobsByCompany = async (companyId: string) => {

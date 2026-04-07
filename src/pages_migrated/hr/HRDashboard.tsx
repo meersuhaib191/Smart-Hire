@@ -7,8 +7,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import {
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -20,33 +18,29 @@ import {
   Pie,
   Cell
 } from 'recharts';
-import { Users, FileText, CheckCircle, TrendingUp, Plus } from 'lucide-react';
+import { Users, FileText, TrendingUp, Plus } from 'lucide-react';
 import Link from 'next/link';
-
-const applicantData = [
-  { name: 'Mon', applicants: 12 },
-  { name: 'Tue', applicants: 18 },
-  { name: 'Wed', applicants: 24 },
-  { name: 'Thu', applicants: 30 },
-  { name: 'Fri', applicants: 22 },
-  { name: 'Sat', applicants: 15 },
-  { name: 'Sun', applicants: 8 },
-];
-
-const funnelData = [
-  { name: 'Applied', value: 400 },
-  { name: 'Screening', value: 300 },
-  { name: 'Interview', value: 100 },
-  { name: 'Offer', value: 20 },
-  { name: 'Hired', value: 10 },
-];
 
 const COLORS = ['#6366f1', '#818cf8', '#a5b4fc', '#c7d2fe', '#e0e7ff'];
 
 export const HRDashboard = () => {
   const { user } = useStore();
-  const [jobs, setJobs] = useState<any[]>([]);
+  const [jobs, setJobs] = useState<Array<{
+    id: string;
+    title: string;
+    created_at: string;
+    status: string;
+    applications?: Array<{ id: string }>;
+  }>>([]);
   const [isLoadingJobs, setIsLoadingJobs] = useState(true);
+  const [summary, setSummary] = useState<{
+    activeJobs: number;
+    totalApplicants: number;
+    interviewingCount: number;
+    completionRate: number;
+    funnel: Array<{ name: string; value: number }>;
+    dailyApplicants: Array<{ name: string; applicants: number }>;
+  } | null>(null);
 
   useEffect(() => {
     const fetchJobs = async () => {
@@ -63,6 +57,27 @@ export const HRDashboard = () => {
 
     fetchJobs();
   }, [user]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/hr/summary");
+        const json = await res.json();
+        if (res.ok && json.activeJobs != null) {
+          setSummary({
+            activeJobs: json.activeJobs,
+            totalApplicants: json.totalApplicants,
+            interviewingCount: json.interviewingCount ?? 0,
+            completionRate: json.completionRate ?? 0,
+            funnel: json.funnel || [],
+            dailyApplicants: json.dailyApplicants || [],
+          });
+        }
+      } catch {
+        // ignore
+      }
+    })();
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -82,8 +97,8 @@ export const HRDashboard = () => {
             <FileText className="h-4 w-4 text-slate-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">8</div>
-            <p className="text-xs text-slate-500">2 closing this week</p>
+            <div className="text-2xl font-bold">{summary?.activeJobs ?? "—"}</div>
+            <p className="text-xs text-slate-500">From your Supabase project</p>
           </CardContent>
         </Card>
         <Card>
@@ -92,8 +107,8 @@ export const HRDashboard = () => {
             <Users className="h-4 w-4 text-slate-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">1,248</div>
-            <p className="text-xs text-slate-500">+18% from last month</p>
+            <div className="text-2xl font-bold">{summary?.totalApplicants ?? "—"}</div>
+            <p className="text-xs text-slate-500">All applications</p>
           </CardContent>
         </Card>
         <Card>
@@ -102,18 +117,18 @@ export const HRDashboard = () => {
             <Users className="h-4 w-4 text-slate-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">42</div>
-            <p className="text-xs text-slate-500">Currently in process</p>
+            <div className="text-2xl font-bold">{summary?.interviewingCount ?? "—"}</div>
+            <p className="text-xs text-slate-500">Currently in interview stage</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Time to Hire</CardTitle>
+            <CardTitle className="text-sm font-medium">Completion Rate</CardTitle>
             <TrendingUp className="h-4 w-4 text-slate-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">18d</div>
-            <p className="text-xs text-slate-500">-2 days from average</p>
+            <div className="text-2xl font-bold">{summary?.completionRate ?? "—"}%</div>
+            <p className="text-xs text-slate-500">Applications that reached COMPLETE</p>
           </CardContent>
         </Card>
       </div>
@@ -126,7 +141,7 @@ export const HRDashboard = () => {
           <CardContent className="pl-2">
             <div className="h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={applicantData}>
+                <AreaChart data={summary?.dailyApplicants || []}>
                   <defs>
                     <linearGradient id="colorApplicants" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#6366f1" stopOpacity={0.8} />
@@ -156,7 +171,7 @@ export const HRDashboard = () => {
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={funnelData}
+                    data={summary?.funnel || []}
                     cx="50%"
                     cy="50%"
                     innerRadius={60}
@@ -165,7 +180,7 @@ export const HRDashboard = () => {
                     paddingAngle={5}
                     dataKey="value"
                   >
-                    {funnelData.map((entry, index) => (
+                    {(summary?.funnel || []).map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
@@ -174,7 +189,7 @@ export const HRDashboard = () => {
               </ResponsiveContainer>
             </div>
             <div className="mt-4 space-y-2">
-              {funnelData.map((item, index) => (
+              {(summary?.funnel || []).map((item, index) => (
                 <div key={index} className="flex items-center justify-between text-sm">
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>

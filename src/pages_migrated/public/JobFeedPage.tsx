@@ -1,63 +1,65 @@
 "use client";
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import Image from 'next/image';
+import { formatDistanceToNow } from 'date-fns';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Search, MapPin, Briefcase, DollarSign, Filter, Star } from 'lucide-react';
 
-const jobs = [
-  {
-    id: 1,
-    title: 'Senior Frontend Engineer',
-    company: 'TechCorp Inc.',
-    location: 'Remote',
-    salary: '$120k - $150k',
-    type: 'Full-time',
-    skills: ['React', 'TypeScript', 'Tailwind'],
-    match: 95,
-    posted: '2 days ago',
-    logo: 'https://ui-avatars.com/api/?name=TechCorp&background=6366f1&color=fff'
-  },
-  {
-    id: 2,
-    title: 'Product Designer',
-    company: 'Creative Studio',
-    location: 'New York, NY',
-    salary: '$100k - $130k',
-    type: 'Full-time',
-    skills: ['Figma', 'UI/UX', 'Prototyping'],
-    match: 88,
-    posted: '5 days ago',
-    logo: 'https://ui-avatars.com/api/?name=Creative&background=f59e0b&color=fff'
-  },
-  {
-    id: 3,
-    title: 'Backend Developer',
-    company: 'CloudSystems',
-    location: 'San Francisco, CA',
-    salary: '$140k - $180k',
-    type: 'Contract',
-    skills: ['Node.js', 'PostgreSQL', 'AWS'],
-    match: 72,
-    posted: '1 week ago',
-    logo: 'https://ui-avatars.com/api/?name=Cloud&background=10b981&color=fff'
-  },
-  {
-    id: 4,
-    title: 'DevOps Engineer',
-    company: 'ScaleUp',
-    location: 'Remote',
-    salary: '$130k - $160k',
-    type: 'Full-time',
-    skills: ['Docker', 'Kubernetes', 'CI/CD'],
-    match: 65,
-    posted: '3 days ago',
-    logo: 'https://ui-avatars.com/api/?name=ScaleUp&background=ef4444&color=fff'
-  }
-];
+type PublicJob = {
+  id: string;
+  title: string;
+  description: string;
+  created_at: string;
+  company: string;
+  skills: string[];
+};
 
 export const JobFeedPage = () => {
+  const [jobs, setJobs] = useState<PublicJob[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState('');
+  const [location, setLocation] = useState('');
+  const [types, setTypes] = useState<string[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/api/jobs');
+        const json = await res.json();
+        if (res.ok) {
+          setJobs(json.jobs || []);
+        }
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const toggleType = (type: string) => {
+    setTypes((prev) => (prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]));
+  };
+
+  const filteredJobs = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const loc = location.trim().toLowerCase();
+
+    return jobs.filter((job) => {
+      const inferredType = job.title.toLowerCase().includes('intern') ? 'Internship' : 'Full-time';
+      const matchesType = !types.length || types.includes(inferredType);
+      const matchesQuery =
+        !q ||
+        job.title.toLowerCase().includes(q) ||
+        job.company.toLowerCase().includes(q) ||
+        job.skills.some((skill) => skill.toLowerCase().includes(q));
+      const matchesLocation = !loc || 'remote / flexible'.includes(loc);
+      return matchesType && matchesQuery && matchesLocation;
+    });
+  }, [jobs, location, query, types]);
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex flex-col md:flex-row gap-8">
@@ -74,7 +76,12 @@ export const JobFeedPage = () => {
               <div className="space-y-2">
                 {['Full-time', 'Part-time', 'Contract', 'Internship'].map((type) => (
                   <label key={type} className="flex items-center gap-2 text-sm text-slate-600">
-                    <input type="checkbox" className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                    <input
+                      type="checkbox"
+                      checked={types.includes(type)}
+                      onChange={() => toggleType(type)}
+                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    />
                     {type}
                   </label>
                 ))}
@@ -109,58 +116,64 @@ export const JobFeedPage = () => {
           <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 flex gap-4">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-2.5 h-5 w-5 text-slate-400" />
-              <input 
-                type="text" 
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search by job title, skill, or company" 
-                className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="pl-10"
               />
             </div>
             <div className="w-1/3 relative hidden md:block">
               <MapPin className="absolute left-3 top-2.5 h-5 w-5 text-slate-400" />
-              <input 
-                type="text" 
+              <Input
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
                 placeholder="Location" 
-                className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="pl-10"
               />
             </div>
-            <Button>Search</Button>
+            <Button variant="outline">{filteredJobs.length} results</Button>
           </div>
 
           <div className="space-y-4">
-            {jobs.map((job) => (
+            {loading ? (
+              <p className="text-sm text-slate-500">Loading jobs...</p>
+            ) : filteredJobs.map((job) => (
               <Card key={job.id} className="hover:shadow-md transition-shadow cursor-pointer border-slate-200">
                 <CardContent className="p-6">
                   <div className="flex items-start gap-4">
-                    <img src={job.logo} alt={job.company} className="w-12 h-12 rounded-lg" />
+                    <Image
+                      src={`https://ui-avatars.com/api/?name=${encodeURIComponent(job.company)}&background=6366f1&color=fff`}
+                      alt={job.company}
+                      width={48}
+                      height={48}
+                      className="rounded-lg"
+                    />
                     <div className="flex-1 min-w-0">
                       <div className="flex justify-between items-start">
                         <div>
                           <h3 className="text-lg font-semibold text-slate-900 group-hover:text-indigo-600">{job.title}</h3>
                           <p className="text-slate-500 font-medium">{job.company}</p>
                         </div>
-                        {job.match > 80 && (
-                          <Badge variant="success" className="bg-green-50 text-green-700 border-green-200">
-                            {job.match}% Match
-                          </Badge>
-                        )}
+                        <Badge variant="secondary">Published</Badge>
                       </div>
                       
                       <div className="flex flex-wrap items-center gap-4 mt-3 text-sm text-slate-500">
                         <div className="flex items-center gap-1">
                           <MapPin size={16} />
-                          {job.location}
+                          Remote / Flexible
                         </div>
                         <div className="flex items-center gap-1">
                           <DollarSign size={16} />
-                          {job.salary}
+                          Not specified
                         </div>
                         <div className="flex items-center gap-1">
                           <Briefcase size={16} />
-                          {job.type}
+                          {job.title.toLowerCase().includes('intern') ? 'Internship' : 'Full-time'}
                         </div>
                         <div className="flex items-center gap-1">
                           <Star size={16} />
-                          {job.posted}
+                          {formatDistanceToNow(new Date(job.created_at), { addSuffix: true })}
                         </div>
                       </div>
 
@@ -173,12 +186,17 @@ export const JobFeedPage = () => {
                       </div>
                     </div>
                     <div className="self-center">
-                      <Button variant="outline">View Details</Button>
+                      <Link href={`/jobs/${job.id}/apply`}>
+                        <Button variant="outline">Apply</Button>
+                      </Link>
                     </div>
                   </div>
                 </CardContent>
               </Card>
             ))}
+            {!loading && filteredJobs.length === 0 && (
+              <p className="text-sm text-slate-500">No jobs match your filters.</p>
+            )}
           </div>
         </div>
       </div>

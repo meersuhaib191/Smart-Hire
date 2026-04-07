@@ -1,0 +1,148 @@
+import { NextResponse } from "next/server";
+import { createSupabaseAdmin } from "@/server/supabase/admin";
+import { requireAuthUser } from "@/server/auth/session";
+import {
+  createMcqSessionToken,
+  getMcqExamSeconds,
+  getMcqRemainingSeconds,
+  verifyMcqSessionToken,
+} from "@/server/mcq/sessionToken";
+import { cookies } from "next/headers";
+
+export async function GET(request: Request) {
+  try {
+    const url = new URL(request.url);
+    const applicationId = url.searchParams.get("applicationId") || "";
+    if (!applicationId) {
+      return NextResponse.json({ error: "applicationId is required." }, { status: 400 });
+    }
+
+    const user = await requireAuthUser();
+    const cookieStore = await cookies();
+    const admin = createSupabaseAdmin();
+
+    const { data: application, error: appError } = await admin
+      .from("applications")
+      .select("id, user_id, job_id, pipeline_step")
+      .eq("id", applicationId)
+      .maybeSingle();
+
+    if (appError || !application) {
+      return NextResponse.json({ error: "Application not found." }, { status: 404 });
+    }
+    if (application.user_id !== user.id) {
+      return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+    }
+
+    const { data: attempt } = await admin
+      .from("mcq_attempts")
+      .select("id, score, total_questions, correct_answers, submitted_at")
+      .eq("application_id", applicationId)
+      .maybeSingle();
+
+    const { data: questions, error: questionsError } = await admin
+      .from("mcq_questions")
+      .select("id, question_text, options, skill_tag, difficulty")
+      .eq("job_id", application.job_id)
+      .order("created_at", { ascending: true })
+      .limit(30);
+
+    if (questionsError) {
+      return NextResponse.json({ error: "Failed to load MCQ questions.", detail: questionsError.message }, { status: 500 });
+    }
+
+    let reviewAnswers: Array<{
+      questionId: string;
+      questionText: string;
+      options: string[];
+      selectedOption: number;
+      isCorrect: boolean;
+    }> = [];
+
+    if (attempt?.id) {
+      const { data: reviewed } = await admin
+        .from("mcq_attempt_answers")
+        .select("selected_option, is_correct, mcq_questions(id, question_text, options)")
+        .eq("attempt_id", attempt.id);
+
+      type ReviewedRow = {
+        selected_option: number;
+        is_correct: boolean;
+        mcq_questions: { id: string; question_text: string; options: string[] } | null;
+      };
+
+      reviewAnswers = ((reviewed || []) as ReviewedRow[])
+        .map((row) => ({
+          questionId: row.mcq_questions?.id || "",
+          questionText: row.mcq_questions?.question_text || "",
+          options: row.mcq_questions?.options || [],
+          selectedOption: Number(row.selected_option),
+          isCorrect: Boolean(row.is_correct),
+        }))
+        .filter((r) => r.questionId && r.questionText);
+    }
+
+    const cookieName = `mcq_session_${applicationId}`;
+    const existingToken = cookieStore.get(cookieName)?.value || "";
+    let hasExpired = false;
+    let sessionToken = "";
+    let issuedAt = Math.floor(Date.now() / 1000);
+
+    if (existingToken) {
+      const checked = verifyMcqSessionToken(existingToken, applicationId);
+      if (checked.valid) {
+        sessionToken = existingToken;
+        issuedAt = checked.issuedAt;
+      } else if (checked.reason === "expired") {
+        hasExpired = true;
+      } else {
+        // Invalid/malformed cookie token: restart session instead of blocking forever.
+        sessionToken = createMcqSessionToken(applicationId);
+        const verified = verifyMcqSessionToken(sessionToken, applicationId);
+        if (verified.valid) issuedAt = verified.issuedAt;
+      }
+    } else {
+      sessionToken = createMcqSessionToken(applicationId);
+      const verified = verifyMcqSessionToken(sessionToken, applicationId);
+      if (verified.valid) issuedAt = verified.issuedAt;
+    }
+
+    if (attempt?.id) {
+      hasExpired = false;
+    }
+
+    const remainingSeconds = hasExpired ? 0 : getMcqRemainingSeconds(issuedAt);
+    const response = NextResponse.json({
+      applicationId,
+      pipelineStep: application.pipeline_step,
+      hasSubmitted: Boolean(attempt?.id),
+      attempt: attempt || null,
+      questions: questions || [],
+      reviewAnswers,
+      examSeconds: getMcqExamSeconds(),
+      remainingSeconds,
+      hasExpired,
+      sessionToken: attempt?.id ? "" : sessionToken,
+    });
+
+    if (attempt?.id) {
+      response.cookies.set(cookieName, "", {
+        path: "/",
+        maxAge: 0,
+      });
+    } else if (sessionToken) {
+      response.cookies.set(cookieName, sessionToken, {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+        maxAge: 60 * 60 * 24,
+      });
+    }
+
+    return response;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to load MCQ session.";
+    return NextResponse.json({ error: message }, { status: message === "Unauthorized" ? 401 : 500 });
+  }
+}

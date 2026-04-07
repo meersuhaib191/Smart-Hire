@@ -1,5 +1,21 @@
-import { LandingPage } from "@/pages_migrated/public/LandingPage";
+import { createClient } from "@/utils/supabase/server";
+import { cookies } from "next/headers";
 
-export default function Home() {
-  return <LandingPage />;
+type Todo = {
+  id: string;
+  name: string;
+};
+
+export default async function Page() {
+  const cookieStore = await cookies();
+  const supabase = createClient(cookieStore);
+  const { data: todos } = await supabase.from("todos").select();
+
+  return (
+    <ul>
+      {todos?.map((todo: Todo) => (
+        <li key={todo.id}>{todo.name}</li>
+      ))}
+    </ul>
+  );
 }

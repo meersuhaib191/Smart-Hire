@@ -1,15 +1,21 @@
 "use client";
 import React, { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 
 import { Button } from '@/components/ui/Button';
-import { Play, Send, ChevronRight, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { Play, Send, Clock } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
-import { projectId, publicAnonKey } from '@/utils/supabase/info';
 import { toast } from 'sonner';
+import { MonacoCodeEditor } from '@/components/coding/MonacoCodeEditor';
 
-const SERVER_URL = `https://${projectId}.supabase.co/functions/v1/make-server-62e6c0e8`;
-
-export const CodingPage = () => {
+export const CodingPage = ({
+  challengeId,
+}: {
+  challengeId: string;
+}) => {
+  const searchParams = useSearchParams();
+  const applicationId = searchParams.get("applicationId") || "";
+  const language = "javascript";
   const [code, setCode] = useState(`// Try running this JavaScript code!
 console.log("Hello, Smart Hire!");
 const sum = (a, b) => a + b;
@@ -24,24 +30,56 @@ console.log("Sum of 5 and 7 is:", sum(5, 7));
     setIsRunning(true);
     setOutput("Running...");
     try {
-      const response = await fetch(`${SERVER_URL}/execute`, {
+      const response = await fetch(`/api/coding/run`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${publicAnonKey}`
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ code, language: 'javascript' })
+        body: JSON.stringify({ sourceCode: code, language })
       });
       
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Execution failed');
       
-      setOutput(data.output);
+      setOutput(data.output || data.stderr || data.status);
       toast.success('Code executed');
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Execution failed";
       console.error(error);
-      setOutput(`Error: ${error.message}`);
-      toast.error('Execution failed');
+      setOutput(`Error: ${message}`);
+      toast.error(message);
+    } finally {
+      setIsRunning(false);
+    }
+  };
+
+  const submitCode = async () => {
+    if (!applicationId) {
+      toast.error("Add ?applicationId=… to the URL (your application UUID).");
+      return;
+    }
+    setIsRunning(true);
+    try {
+      const response = await fetch(`/api/coding/submit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          applicationId,
+          challengeId,
+          sourceCode: code,
+          language,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Submit failed");
+      setOutput(
+        `Score: ${data.result.score}\nPassed: ${data.result.passedCount}/${data.result.totalCount}`
+      );
+      toast.success("Submission evaluated");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Submit failed";
+      toast.error(message);
+      setOutput(`Error: ${message}`);
     } finally {
       setIsRunning(false);
     }
@@ -71,7 +109,7 @@ console.log("Sum of 5 and 7 is:", sum(5, 7));
           >
             Run
           </Button>
-          <Button size="sm" className="bg-green-600 hover:bg-green-700" leftIcon={<Send size={16} />}>Submit</Button>
+          <Button size="sm" className="bg-green-600 hover:bg-green-700" leftIcon={<Send size={16} />} onClick={submitCode} isLoading={isRunning}>Submit</Button>
         </div>
       </div>
 
@@ -146,12 +184,7 @@ console.log("Sum of 5 and 7 is:", sum(5, 7));
                 <div className="h-10 bg-[#252526] flex items-center px-4 border-b border-[#333]">
                   <span className="text-sm text-yellow-500 font-medium">JavaScript</span>
                 </div>
-                <textarea
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  className="flex-1 w-full bg-[#1e1e1e] text-slate-200 font-mono p-4 resize-none outline-none text-sm leading-6"
-                  spellCheck={false}
-                />
+                <MonacoCodeEditor value={code} language={language} onChange={setCode} />
               </div>
             </div>
             

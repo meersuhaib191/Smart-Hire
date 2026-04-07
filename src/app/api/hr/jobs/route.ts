@@ -1,0 +1,160 @@
+import { NextResponse } from "next/server";
+import { createSupabaseAdmin } from "@/server/supabase/admin";
+import { requireAuthUser, requireHr } from "@/server/auth/session";
+import { generateMcqs } from "@/server/mcq/generator";
+import { buildDefaultChallenge } from "@/server/coding/seedChallenge";
+
+type CreateJobBody = {
+  title: string;
+  description: string;
+  experience_required: number;
+  company_id: string;
+  skills: string[];
+  weights: {
+    ats_weight: number;
+    mcq_weight: number;
+    coding_weight: number;
+    interview_weight: number;
+  };
+};
+
+export async function GET() {
+  try {
+    const user = await requireAuthUser();
+    requireHr(user);
+
+    const admin = createSupabaseAdmin();
+    const { data, error } = await admin
+      .from("jobs")
+      .select("id, title, company_id, status, created_at")
+      .order("created_at", { ascending: false })
+      .limit(100);
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ jobs: data || [] });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to load jobs.";
+    const status =
+      message === "Unauthorized" ? 401 : message === "Forbidden" ? 403 : 500;
+    return NextResponse.json({ error: message }, { status });
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const user = await requireAuthUser();
+    requireHr(user);
+    const body = (await request.json()) as Partial<CreateJobBody>;
+
+    if (!body.title || !body.description || !body.company_id) {
+      return NextResponse.json({ error: "title, description and company_id are required." }, { status: 400 });
+    }
+
+    const skills = body.skills || [];
+    const weights = body.weights || {
+      ats_weight: 1,
+      mcq_weight: 0,
+      coding_weight: 0,
+      interview_weight: 0,
+    };
+    const weightSum =
+      Number(weights.ats_weight) +
+      Number(weights.mcq_weight) +
+      Number(weights.coding_weight) +
+      Number(weights.interview_weight);
+    if (Math.abs(weightSum - 1) > 0.01) {
+      return NextResponse.json({ error: "Stage weights must sum to 1.00." }, { status: 400 });
+    }
+
+    const admin = createSupabaseAdmin();
+    const { data: job, error: jobError } = await admin
+      .from("jobs")
+      .insert({
+        title: body.title,
+        description: body.description,
+        experience_required: body.experience_required || 0,
+        company_id: body.company_id,
+        status: "PUBLISHED",
+      })
+      .select("id, title")
+      .single();
+    if (jobError || !job) {
+      return NextResponse.json({ error: "Failed to create job.", detail: jobError?.message }, { status: 500 });
+    }
+
+    if (skills.length) {
+      await admin.from("job_skills").insert(
+        skills.map((skill) => ({
+          job_id: job.id,
+          skill_name: skill,
+        }))
+      );
+    }
+
+    await admin.from("job_weights").upsert(
+      {
+        job_id: job.id,
+        ats_weight: weights.ats_weight,
+        mcq_weight: weights.mcq_weight,
+        coding_weight: weights.coding_weight,
+        interview_weight: weights.interview_weight,
+      },
+      { onConflict: "job_id" }
+    );
+
+    // Auto-seed MCQ pool
+    const mcqs = await generateMcqs(skills, 10);
+    await admin.from("mcq_questions").insert(
+      mcqs.map((q) => ({
+        job_id: job.id,
+        question_text: q.questionText,
+        options: q.options,
+        correct_option: q.correctOption,
+        skill_tag: q.skillTag || null,
+        difficulty: q.difficulty || "medium",
+      }))
+    );
+
+    // Auto-seed coding challenge + hidden tests
+    const challenge = buildDefaultChallenge(job.title, skills);
+    const { data: createdChallenge } = await admin
+      .from("coding_challenges")
+      .insert({
+        job_id: job.id,
+        title: challenge.title,
+        description: challenge.description,
+        starter_code: challenge.starterCode,
+        language: challenge.language,
+        difficulty: "medium",
+      })
+      .select("id")
+      .single();
+
+    if (createdChallenge?.id) {
+      await admin.from("coding_test_cases").insert(
+        challenge.testCases.map((tc) => ({
+          challenge_id: createdChallenge.id,
+          input: tc.input,
+          expected_output: tc.expected_output,
+          is_hidden: tc.is_hidden,
+        }))
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      jobId: job.id,
+      seeded: {
+        mcqQuestions: mcqs.length,
+        codingChallenge: Boolean(createdChallenge?.id),
+      },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to create job.";
+    const status = message === "Unauthorized" ? 401 : message === "Forbidden" ? 403 : 500;
+    return NextResponse.json({ error: message }, { status });
+  }
+}
