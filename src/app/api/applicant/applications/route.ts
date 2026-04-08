@@ -15,7 +15,9 @@ export async function GET() {
     let { data: applicationRows, error } = await query;
 
     const missingPipelineStepColumn =
-      (error?.message || "").includes("Could not find the 'pipeline_step' column");
+      (error?.message || "").includes("Could not find the 'pipeline_step' column") ||
+      (error?.message || "").includes("column applications.pipeline_step does not exist") ||
+      (error?.message || "").includes('column "pipeline_step" does not exist');
     if (missingPipelineStepColumn) {
       const fallback = await admin
         .from("applications")

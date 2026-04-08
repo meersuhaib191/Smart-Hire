@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/Card";
-import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/Badge";
 import {
   Select,
@@ -13,19 +12,14 @@ import {
 } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageLoadingSkeleton } from "@/components/ui/PageLoadingSkeleton";
+import { Button } from "@/components/ui/Button";
+import { CandidateCard } from "@/components/pipeline/CandidateCard";
+import { PipelineStageColumn } from "@/components/pipeline/PipelineStageColumn";
+import { AdvanceStageModal } from "@/components/pipeline/AdvanceStageModal";
+import { CandidateRow, PipelineStageId, scoreFor, stageOrder, stageLabels } from "@/components/pipeline/types";
+import { BrainCircuit, Share2, Sparkles, Users } from "lucide-react";
 
 type JobRow = { id: string; title: string };
-
-type StageRow = { stage_type: string; score: number; passed: boolean };
-
-type CandidateRow = {
-  applicationId: string;
-  email: string;
-  pipelineStep: string;
-  finalScore: number | null;
-  rankPosition: number | null;
-  stages: StageRow[];
-};
 
 export default function ApplicantsDashboard() {
   const [jobs, setJobs] = useState<JobRow[]>([]);
@@ -34,6 +28,9 @@ export default function ApplicantsDashboard() {
   const [loadingJobs, setLoadingJobs] = useState(true);
   const [loadingCandidates, setLoadingCandidates] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [actionMessage, setActionMessage] = useState("");
+  const [actionLoading, setActionLoading] = useState<null | "ats" | "advance" | "move">(null);
+  const [activity, setActivity] = useState<Array<{ at: string; message: string }>>([]);
 
   useEffect(() => {
     (async () => {
@@ -52,32 +49,144 @@ export default function ApplicantsDashboard() {
     })();
   }, []);
 
+  const loadCandidates = async (selectedJobId: string) => {
+    setLoadingCandidates(true);
+    try {
+      const res = await fetch(`/api/hr/jobs/${selectedJobId}/analytics`, { cache: "no-store" });
+      const json = await res.json();
+      if (res.ok) {
+        setCandidates(json.candidates || []);
+        setErrorMessage("");
+      } else {
+        setCandidates([]);
+        setErrorMessage(json.error || "Failed to load candidate analytics.");
+      }
+    } finally {
+      setLoadingCandidates(false);
+    }
+  };
+
   useEffect(() => {
     if (!jobId) return;
-    (async () => {
-      setLoadingCandidates(true);
-      try {
-        const res = await fetch(`/api/hr/jobs/${jobId}/analytics`, { cache: "no-store" });
-        const json = await res.json();
-        if (res.ok) {
-          setCandidates(json.candidates || []);
-          setErrorMessage("");
-        } else {
-          setCandidates([]);
-          setErrorMessage(json.error || "Failed to load candidate analytics.");
-        }
-      } finally {
-        setLoadingCandidates(false);
-      }
-    })();
+    void loadCandidates(jobId);
+    const interval = window.setInterval(() => {
+      void loadCandidates(jobId);
+    }, 8000);
+    return () => window.clearInterval(interval);
   }, [jobId]);
 
-  const selectedTitle = jobs.find((j) => j.id === jobId)?.title || "Select a job";
+  const selectedTitle = jobs.find((j) => j.id === jobId)?.title || "Pipeline";
+  const totalApplicants = candidates.length;
 
-  const displayScore = (c: CandidateRow) => {
-    if (c.finalScore != null) return Number(c.finalScore);
-    const ats = c.stages.find((s) => s.stage_type === "ATS");
-    return ats ? Number(ats.score) : 0;
+  const stageBuckets = useMemo(() => {
+    const bucket: Record<PipelineStageId, CandidateRow[]> = {
+      ATS: [],
+      MCQ: [],
+      CODING: [],
+      INTERVIEW: [],
+      COMPLETE: [],
+      REJECTED: [],
+    };
+    for (const c of candidates) {
+      const step = String(c.pipelineStep || "ATS").toUpperCase();
+      const normalized = (["ATS", "MCQ", "CODING", "INTERVIEW", "COMPLETE", "REJECTED"].includes(step)
+        ? step
+        : "ATS") as PipelineStageId;
+      bucket[normalized].push(c);
+    }
+    for (const key of Object.keys(bucket) as PipelineStageId[]) {
+      bucket[key] = bucket[key].sort((a, b) => scoreFor(b) - scoreFor(a));
+    }
+    return bucket;
+  }, [candidates]);
+
+  const conversion = (stage: PipelineStageId) => {
+    const idx = stageOrder.indexOf(stage);
+    if (idx <= 0) return totalApplicants ? 100 : 0;
+    const prev = stageOrder[idx - 1];
+    const prevCount = stageBuckets[prev].length;
+    if (!prevCount) return 0;
+    return (stageBuckets[stage].length / prevCount) * 100;
+  };
+
+  const runAtsScreening = async () => {
+    if (!jobId) return;
+    setActionLoading("ats");
+    setActionMessage("");
+    try {
+      const res = await fetch(`/api/hr/jobs/${jobId}/run-ats`, { method: "POST" });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || "Failed to run ATS screening.");
+      setActionMessage(`ATS screening completed. Screened: ${json.screened}, Skipped: ${json.skipped}, Failed: ${json.failed}.`);
+      setActivity((prev) => [
+        { at: new Date().toISOString(), message: `ATS screening completed for ${selectedTitle}.` },
+        ...prev,
+      ].slice(0, 30));
+      await loadCandidates(jobId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to run ATS screening.";
+      setErrorMessage(message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const advanceTopN = async (fromStage: "ATS" | "MCQ" | "CODING", topN: number) => {
+    if (!jobId) return;
+    setActionLoading("advance");
+    setActionMessage("");
+    try {
+      const res = await fetch(`/api/hr/jobs/${jobId}/advance`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fromStage,
+          topN: Number(topN) || 1,
+          rejectRest: false,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || "Failed to advance top candidates.");
+      setActionMessage(
+        `Moved ${json.advanced} candidate(s) from ${json.fromStage} to ${json.nextStage}.`
+      );
+      setActivity((prev) => [
+        {
+          at: new Date().toISOString(),
+          message: `Moved top ${topN} candidates from ${stageLabels[fromStage]} to ${stageLabels[json.nextStage as PipelineStageId] || json.nextStage}.`,
+        },
+        ...prev,
+      ].slice(0, 30));
+      await loadCandidates(jobId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to advance top candidates.";
+      setErrorMessage(message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const moveCandidate = async (applicationId: string, stage: PipelineStageId) => {
+    setActionLoading("move");
+    try {
+      const res = await fetch(`/api/hr/applications/${applicationId}/move`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetStage: stage }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || "Failed to move candidate.");
+      setActivity((prev) => [
+        { at: new Date().toISOString(), message: `Candidate ${applicationId.slice(0, 8)} moved to ${stageLabels[stage]}.` },
+        ...prev,
+      ].slice(0, 30));
+      await loadCandidates(jobId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to move candidate.";
+      setErrorMessage(message);
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   return (
@@ -86,8 +195,7 @@ export default function ApplicantsDashboard() {
         <div>
           <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Candidate Pipeline</h1>
           <p className="mt-2 text-sm text-slate-500">
-            Pipeline + stage scores for{" "}
-            <span className="font-medium text-slate-900">{selectedTitle}</span>
+            Visual funnel and stage orchestration for <span className="font-medium text-slate-900">{selectedTitle}</span>
           </p>
         </div>
         <div className="w-full max-w-sm">
@@ -112,61 +220,157 @@ export default function ApplicantsDashboard() {
 
       {loadingCandidates ? <PageLoadingSkeleton /> : null}
       {!loadingCandidates && errorMessage ? <p className="text-sm text-red-600">{errorMessage}</p> : null}
+      {actionMessage ? <p className="text-sm text-green-600">{actionMessage}</p> : null}
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {candidates.map((c) => {
-          const score = displayScore(c);
-          return (
-            <Card key={c.applicationId} className="flex flex-col rounded-2xl border-slate-200/80 shadow-sm transition hover:shadow-md">
-              <CardHeader className="pb-4">
-                <div className="flex justify-between items-start gap-2">
-                  <div className="min-w-0">
-                    <CardTitle className="text-xl truncate">{c.email}</CardTitle>
-                    <CardDescription className="truncate">
-                      {c.pipelineStep} · Rank #{c.rankPosition ?? "—"}
-                    </CardDescription>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <span
-                      className={`text-2xl font-bold ${
-                        score >= 80 ? "text-green-500" : score >= 50 ? "text-yellow-500" : "text-red-500"
-                      }`}
-                    >
-                      {score.toFixed(1)}
-                    </span>
-                    <p className="text-xs text-muted-foreground">
-                      {c.finalScore != null ? "Final" : "Best available"}
-                    </p>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="flex-1 space-y-4">
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-600">Score</span>
-                    <span className="font-medium">{score.toFixed(0)}</span>
-                  </div>
-                  <Progress value={Math.min(100, Math.max(0, score))} className="h-2" />
-                </div>
+      <Card className="rounded-2xl border-slate-200/80 bg-white/95 shadow-sm">
+        <CardHeader>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <CardTitle className="text-xl">Funnel Overview</CardTitle>
+              <CardDescription>
+                Total applicants: <span className="font-medium text-slate-800">{totalApplicants}</span>
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="success">Active</Badge>
+              <Button variant="outline" className="rounded-xl">
+                <Share2 size={14} className="mr-2" />
+                Share Job
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3 md:grid-cols-5">
+            {stageOrder.map((stage, idx) => (
+              <div key={stage} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{stageLabels[stage]}</p>
+                <p className="mt-1 text-2xl font-semibold text-slate-900">{stageBuckets[stage].length}</p>
+                <p className="text-xs text-slate-500">{idx === 0 ? "Entry stage" : `${conversion(stage).toFixed(0)}% from previous`}</p>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
-                <div className="flex flex-wrap gap-1.5">
-                  {c.stages.map((s) => (
-                    <Badge key={s.stage_type} variant="secondary">
-                      {s.stage_type}: {Number(s.score).toFixed(0)}
-                      {s.passed ? " ✓" : ""}
-                    </Badge>
-                  ))}
+      <Card className="rounded-2xl border-slate-200/80 bg-white/95 shadow-sm">
+        <CardHeader>
+          <CardTitle>Smart Actions</CardTitle>
+          <CardDescription>
+            Run ATS, then advance top candidates through MCQ, Coding, and AI Interview with a guided modal.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <Button onClick={runAtsScreening} disabled={!jobId || actionLoading !== null} className="rounded-xl">
+            {actionLoading === "ats" ? "Running ATS..." : "Run ATS Screening"}
+          </Button>
+
+          <AdvanceStageModal
+            fromStage="ATS"
+            nextStage="MCQ"
+            max={stageBuckets.ATS.length}
+            disabled={!jobId || actionLoading !== null || stageBuckets.ATS.length === 0}
+            onConfirm={async (n) => advanceTopN("ATS", n)}
+          />
+          <AdvanceStageModal
+            fromStage="MCQ"
+            nextStage="CODING"
+            max={stageBuckets.MCQ.length}
+            disabled={!jobId || actionLoading !== null || stageBuckets.MCQ.length === 0}
+            onConfirm={async (n) => advanceTopN("MCQ", n)}
+          />
+          <AdvanceStageModal
+            fromStage="CODING"
+            nextStage="INTERVIEW"
+            max={stageBuckets.CODING.length}
+            disabled={!jobId || actionLoading !== null || stageBuckets.CODING.length === 0}
+            onConfirm={async (n) => advanceTopN("CODING", n)}
+          />
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-4 xl:grid-cols-[1fr_320px]">
+        <div className="grid gap-4 xl:grid-cols-5">
+          {stageOrder.map((stage) => (
+            <PipelineStageColumn
+              key={stage}
+              stage={stage}
+              count={stageBuckets[stage].length}
+              conversionRate={conversion(stage)}
+              onDropApplication={(applicationId, targetStage) => {
+                void moveCandidate(applicationId, targetStage);
+              }}
+            >
+              {stageBuckets[stage].length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-200 p-4 text-center">
+                  <p className="text-sm font-medium text-slate-700">No candidates yet</p>
+                  <p className="mt-1 text-xs text-slate-500">Drag candidates here or use advance actions.</p>
                 </div>
-              </CardContent>
-            </Card>
-          );
-        })}
+              ) : (
+                stageBuckets[stage].map((candidate) => (
+                  <CandidateCard
+                    key={candidate.applicationId}
+                    candidate={candidate}
+                    onMove={(applicationId, targetStage) => {
+                      void moveCandidate(applicationId, targetStage);
+                    }}
+                    onReject={(applicationId) => {
+                      void moveCandidate(applicationId, "REJECTED");
+                    }}
+                    onView={(applicationId) => {
+                      setActionMessage(`Application ID: ${applicationId}`);
+                    }}
+                  />
+                ))
+              )}
+            </PipelineStageColumn>
+          ))}
+        </div>
+
+        <Card className="rounded-2xl border-slate-200/80 bg-white/95 shadow-sm">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Sparkles size={16} className="text-indigo-600" />
+              <CardTitle className="text-lg">Activity Feed</CardTitle>
+            </div>
+            <CardDescription>Live stage operations and screening events.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {activity.length === 0 ? (
+              <EmptyState
+                title="No candidate activity yet"
+                description="Run ATS screening or move candidates to start pipeline activity."
+                icon={<BrainCircuit size={18} />}
+                action={
+                  <Button variant="outline" className="rounded-xl">
+                    <Users size={14} className="mr-2" />
+                    Invite Candidates
+                  </Button>
+                }
+              />
+            ) : (
+              activity.map((a, idx) => (
+                <div key={`${a.at}-${idx}`} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-sm text-slate-800">{a.message}</p>
+                  <p className="mt-1 text-xs text-slate-500">{new Date(a.at).toLocaleString()}</p>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {!loadingCandidates && jobId && candidates.length === 0 ? (
         <EmptyState
-          title="No applications for this job yet."
-          description="Once candidates apply, their stage breakdown appears here."
+          title="No candidates yet"
+          description="Share this job and invite candidates to begin your hiring pipeline."
+          icon={<Users size={18} />}
+          action={
+            <Button variant="outline" className="rounded-xl">
+              <Share2 size={14} className="mr-2" />
+              Share Job
+            </Button>
+          }
         />
       ) : null}
     </div>

@@ -3,8 +3,13 @@ import React from 'react';
 import Link from 'next/link';
 import { Button } from './ui/Button';
 import { BrainCircuit, Menu } from 'lucide-react';
+import { useStore } from '@/store/useStore';
 
 export const PublicLayout = ({ children }: { children: React.ReactNode }) => {
+  const { user, isAuthenticated, hasCheckedSession, logout } = useStore();
+  const dashboardHref =
+    user?.role === 'hr' || user?.role === 'admin' ? '/hr/dashboard' : '/applicant/dashboard';
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       <header className="sticky top-0 z-50 w-full border-b border-slate-200 bg-white/80 backdrop-blur-md">
@@ -23,12 +28,31 @@ export const PublicLayout = ({ children }: { children: React.ReactNode }) => {
           </nav>
 
           <div className="flex items-center gap-3">
-            <Link href="/login">
-              <Button variant="ghost" size="sm">Log in</Button>
-            </Link>
-            <Link href="/register">
-              <Button size="sm">Get Started</Button>
-            </Link>
+            {hasCheckedSession && isAuthenticated ? (
+              <>
+                <Link href={dashboardHref}>
+                  <Button variant="ghost" size="sm">Dashboard</Button>
+                </Link>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    void logout();
+                  }}
+                >
+                  Log out
+                </Button>
+              </>
+            ) : (
+              <>
+                <Link href="/login">
+                  <Button variant="ghost" size="sm">Log in</Button>
+                </Link>
+                <Link href="/register">
+                  <Button size="sm">Get Started</Button>
+                </Link>
+              </>
+            )}
             <Button variant="ghost" size="icon" className="md:hidden">
               <Menu size={20} />
             </Button>

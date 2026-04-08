@@ -19,6 +19,7 @@ export default function ApplyPage() {
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [applicantName, setApplicantName] = useState("");
     const [applicantEmail, setApplicantEmail] = useState("");
+    const [jobTitle, setJobTitle] = useState("");
     useEffect(() => {
         (async () => {
             try {
@@ -36,11 +37,17 @@ export default function ApplyPage() {
                 if (profileRes.ok && profileJson?.profile?.fullName) {
                     setApplicantName(profileJson.profile.fullName);
                 }
+
+                if (jobId) {
+                    const jobRes = await fetch(`/api/jobs/${jobId}`);
+                    const jobJson = await jobRes.json().catch(() => ({}));
+                    if (jobRes.ok && jobJson?.job?.title) setJobTitle(jobJson.job.title);
+                }
             } finally {
                 setLoadingProfile(false);
             }
         })();
-    }, []);
+    }, [jobId]);
 
     useEffect(() => {
         if (!success) return;
@@ -108,11 +115,13 @@ export default function ApplyPage() {
     }
 
     return (
-        <div className="mx-auto mt-10 w-full max-w-3xl">
+        <div className="mx-auto mt-10 grid w-full max-w-5xl gap-6 lg:grid-cols-[1fr_320px]">
             <Card className="rounded-2xl border-slate-200/80 shadow-sm">
                 <CardHeader>
                     <CardTitle className="text-2xl font-semibold tracking-tight text-slate-900">Submit Application</CardTitle>
-                    <CardDescription>Complete your application with your resume. Your profile details are auto-filled.</CardDescription>
+                    <CardDescription>
+                        {jobTitle ? `Applying for ${jobTitle}.` : "Complete your application with your resume."} Your profile details are auto-filled.
+                    </CardDescription>
                 </CardHeader>
                 <CardContent>
                     <form onSubmit={handleSubmit} className="space-y-6">
@@ -143,6 +152,26 @@ export default function ApplyPage() {
                         </Button>
                         {errorMessage ? <p className="text-sm text-red-600">{errorMessage}</p> : null}
                     </form>
+                </CardContent>
+            </Card>
+            <Card className="h-fit rounded-2xl border-slate-200/80 shadow-sm lg:sticky lg:top-24">
+                <CardHeader>
+                    <CardTitle className="text-lg">Application Progress</CardTitle>
+                    <CardDescription>What happens after you submit</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3 text-sm">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <p className="font-medium text-slate-800">1. ATS Screening</p>
+                        <p className="text-slate-500">Resume gets parsed and scored.</p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <p className="font-medium text-slate-800">2. MCQ + Coding</p>
+                        <p className="text-slate-500">Shortlisted candidates receive assessments.</p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <p className="font-medium text-slate-800">3. AI Interview</p>
+                        <p className="text-slate-500">Final screening before offer decisions.</p>
+                    </div>
                 </CardContent>
             </Card>
         </div>

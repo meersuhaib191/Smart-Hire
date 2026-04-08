@@ -15,7 +15,9 @@ export async function GET(_request: Request, context: { params: Promise<{ jobId:
       .eq("job_id", jobId);
 
     const missingPipelineStepColumn =
-      (appsError?.message || "").includes("Could not find the 'pipeline_step' column");
+      (appsError?.message || "").includes("Could not find the 'pipeline_step' column") ||
+      (appsError?.message || "").includes("column applications.pipeline_step does not exist") ||
+      (appsError?.message || "").includes('column "pipeline_step" does not exist');
     if (missingPipelineStepColumn) {
       const fallback = await admin
         .from("applications")
@@ -71,6 +73,23 @@ export async function GET(_request: Request, context: { params: Promise<{ jobId:
       rankPosition: rankByApp[a.id]?.rank_position ?? null,
       stages: stagesByApp[a.id] || [],
     }));
+
+    // Fallback ranking when rank_position is not populated yet.
+    const scoreOf = (c: (typeof candidates)[number]) => {
+      if (c.finalScore != null) return Number(c.finalScore);
+      const ats = c.stages.find((s) => String(s.stage_type).toUpperCase() === "ATS");
+      const mcq = c.stages.find((s) => String(s.stage_type).toUpperCase() === "MCQ");
+      const coding = c.stages.find((s) => String(s.stage_type).toUpperCase() === "CODING");
+      return Number(coding?.score ?? mcq?.score ?? ats?.score ?? 0);
+    };
+    const missingRank = candidates.every((c) => c.rankPosition == null);
+    if (missingRank) {
+      const sorted = [...candidates].sort((a, b) => scoreOf(b) - scoreOf(a));
+      const rankMap = new Map(sorted.map((c, idx) => [c.applicationId, idx + 1]));
+      for (const c of candidates) {
+        c.rankPosition = rankMap.get(c.applicationId) || null;
+      }
+    }
 
     return NextResponse.json({ jobId, candidates });
   } catch (error) {

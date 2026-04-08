@@ -87,11 +87,33 @@ async function register(page, role, user) {
   await page.getByPlaceholder("john@example.com").fill(user.email);
   await page.locator('input[type="password"]').first().fill(user.password);
   await page.locator('input[type="password"]').nth(1).fill(user.password);
+  const registerResp = page.waitForResponse(
+    (r) => r.url().includes("/api/auth/register") && r.request().method() === "POST",
+    { timeout: 120000 }
+  );
   await page.getByRole("button", { name: "Create Account" }).click();
+  const resp = await registerResp;
+  if (!resp.ok()) {
+    const body = await resp.text();
+    throw new Error(`Register failed (${resp.status()}): ${body}`);
+  }
+
+  // Stabilize auth state by logging in explicitly in UI.
+  await page.goto(`${BASE_URL}/login`, { waitUntil: "networkidle" });
+  await page.getByPlaceholder("applicant@example.com").fill(user.email);
+  await page.locator('input[type="password"]').first().fill(user.password);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  if (role === "hr") {
+    await page.waitForURL(/\/(hr\/complete-profile|hr\/dashboard)/, { timeout: 120000 });
+  } else {
+    await page.waitForURL(/\/(applicant\/complete-profile|applicant\/dashboard)/, { timeout: 120000 });
+  }
 }
 
 async function completeHrProfile(page, user) {
-  await page.waitForURL("**/hr/complete-profile", { timeout: 120000 });
+  if (!page.url().includes("/hr/complete-profile")) {
+    await page.goto(`${BASE_URL}/hr/complete-profile`, { waitUntil: "networkidle" });
+  }
   await page.getByPlaceholder("Acme Inc.").fill(user.company);
   await page.getByPlaceholder("Talent Acquisition Lead").fill("Talent Acquisition Lead");
   await page.getByRole("button", { name: "Complete Profile" }).click();
@@ -99,7 +121,9 @@ async function completeHrProfile(page, user) {
 }
 
 async function completeApplicantProfile(page, user) {
-  await page.waitForURL("**/applicant/complete-profile", { timeout: 120000 });
+  if (!page.url().includes("/applicant/complete-profile")) {
+    await page.goto(`${BASE_URL}/applicant/complete-profile`, { waitUntil: "networkidle" });
+  }
   await page.locator('input[type="text"]').first().fill(user.name);
   await page.locator('button:has-text("Additional")').click();
   await page.locator('button:has-text("Complete Profile"):visible').click();

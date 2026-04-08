@@ -15,7 +15,9 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       .single();
 
     const missingPipelineStepColumn =
-      (appError?.message || "").includes("Could not find the 'pipeline_step' column");
+      (appError?.message || "").includes("Could not find the 'pipeline_step' column") ||
+      (appError?.message || "").includes("column applications.pipeline_step does not exist") ||
+      (appError?.message || "").includes('column "pipeline_step" does not exist');
     if (missingPipelineStepColumn) {
       const fallback = await admin
         .from("applications")

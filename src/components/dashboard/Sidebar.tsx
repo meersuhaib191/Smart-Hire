@@ -37,7 +37,7 @@ const roleMenus: Record<UserRole, SidebarItem[]> = {
     { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', href: '/hr/dashboard' },
     { id: 'jobs', icon: Briefcase, label: 'Jobs', href: '/dashboard/hr/jobs' },
     { id: 'candidates', icon: Users, label: 'Candidates', href: '/dashboard/applicants' },
-    { id: 'assessments', icon: ClipboardCheck, label: 'Assessments', href: '/dashboard/applicants' },
+    { id: 'pipeline', icon: ClipboardCheck, label: 'Pipeline', href: '/dashboard/applicants' },
     { id: 'analytics', icon: BarChart, label: 'Analytics', href: '/dashboard/hr/analytics' },
     { id: 'settings', icon: Settings, label: 'Profile', href: '/hr/profile' },
   ],

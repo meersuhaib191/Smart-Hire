@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { Progress } from "@/components/ui/progress";
 
 type Detail = {
   application: {
@@ -75,7 +76,10 @@ export default function Page() {
   if (loading) return <p className="text-sm text-slate-500">Loading…</p>;
   if (!data) return <p className="text-sm text-slate-500">Application not found.</p>;
 
-  const step = data.application.pipeline_step;
+  const step = String(data.application.pipeline_step || "ATS").toUpperCase();
+  const flow = ["ATS", "MCQ", "CODING", "INTERVIEW", "COMPLETE"];
+  const currentIndex = Math.max(0, flow.indexOf(step));
+  const progress = ((currentIndex + 1) / flow.length) * 100;
 
   return (
     <div className="space-y-6">
@@ -89,6 +93,25 @@ export default function Page() {
         </div>
         <Badge variant="secondary">{data.application.current_stage}</Badge>
       </div>
+
+      <Card className="rounded-2xl border-slate-200/80 shadow-sm">
+        <CardHeader>
+          <CardTitle>Application Progress</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Progress value={progress} className="h-2" />
+          <div className="grid gap-2 sm:grid-cols-5">
+            {flow.map((stage, index) => {
+              const active = index <= currentIndex;
+              return (
+                <div key={stage} className={`rounded-xl border p-3 text-center ${active ? "border-indigo-200 bg-indigo-50" : "border-slate-200 bg-slate-50"}`}>
+                  <p className={`text-xs font-semibold uppercase tracking-wide ${active ? "text-indigo-700" : "text-slate-500"}`}>{stage}</p>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
 
       <Card className="rounded-2xl border-slate-200/80 shadow-sm">
         <CardHeader>

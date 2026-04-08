@@ -1,0 +1,448 @@
+{
+  "baseUrl": "http://localhost:3000",
+  "headless": true,
+  "jobs": [
+    {
+      "id": "1dd1016e-2340-411d-ad13-d7a19fefaeb8",
+      "title": "Frontend Engineer 1775659956696",
+      "company_id": "2df6bfa6-3c93-402a-80f9-51ed9de1ac4b",
+      "status": "PUBLISHED",
+      "created_at": "2026-04-08T14:53:28.658481+00:00",
+      "applications": []
+    },
+    {
+      "id": "e6aed85a-e6a1-4b8c-b91d-d9c0ab280b94",
+      "title": "Backend Engineer 1775659956696",
+      "company_id": "2df6bfa6-3c93-402a-80f9-51ed9de1ac4b",
+      "status": "PUBLISHED",
+      "created_at": "2026-04-08T14:53:36.241958+00:00",
+      "applications": []
+    }
+  ],
+  "findings": [
+    {
+      "severity": "high",
+      "title": "HR analytics did not reflect concurrent applications in polling window",
+      "details": "{\"poll1\":{\"ok\":false,\"count\":0},\"poll2\":{\"ok\":false,\"count\":0}}"
+    },
+    {
+      "severity": "high",
+      "title": "No explicit job update endpoint for concurrent HR edits",
+      "details": "Current API provides create/list; conflict-safe update path is missing for collaborative editing."
+    },
+    {
+      "severity": "high",
+      "title": "Shortlist/reject workflow missing in HR UI/API",
+      "details": "No dedicated shortlist/reject action found in current dashboard/applicant management path."
+    },
+    {
+      "severity": "high",
+      "title": "Live push updates not implemented",
+      "details": "No websocket/SSE usage detected; updates rely on fetch/polling."
+    }
+  ],
+  "timeline": [
+    {
+      "at": "2026-04-08T14:52:37.292Z",
+      "actor": "HR-1",
+      "action": "Register start",
+      "details": "hr.one.1775659956696@example.com"
+    },
+    {
+      "at": "2026-04-08T14:53:11.061Z",
+      "actor": "HR-1",
+      "action": "Profile completed",
+      "details": ""
+    },
+    {
+      "at": "2026-04-08T14:53:11.062Z",
+      "actor": "HR-1",
+      "action": "Create job",
+      "details": "Frontend Engineer 1775659956696"
+    },
+    {
+      "at": "2026-04-08T14:53:28.867Z",
+      "actor": "HR-1",
+      "action": "Create job",
+      "details": "Backend Engineer 1775659956696"
+    },
+    {
+      "at": "2026-04-08T14:53:48.394Z",
+      "actor": "HR-1",
+      "action": "Jobs created",
+      "details": "1dd1016e-2340-411d-ad13-d7a19fefaeb8, e6aed85a-e6a1-4b8c-b91d-d9c0ab280b94"
+    },
+    {
+      "at": "2026-04-08T14:53:48.542Z",
+      "actor": "HR-2",
+      "action": "Register start",
+      "details": "hr.two.1775659956696@example.com"
+    },
+    {
+      "at": "2026-04-08T14:54:03.537Z",
+      "actor": "HR-2",
+      "action": "Profile completed",
+      "details": ""
+    },
+    {
+      "at": "2026-04-08T14:54:03.699Z",
+      "actor": "Ava Khan 1775659956696",
+      "action": "Register start",
+      "details": "ava.1775659956696@example.com"
+    },
+    {
+      "at": "2026-04-08T14:54:03.717Z",
+      "actor": "Liam Chen 1775659956696",
+      "action": "Register start",
+      "details": "liam.1775659956696@example.com"
+    },
+    {
+      "at": "2026-04-08T14:54:03.759Z",
+      "actor": "Noah Ali 1775659956696",
+      "action": "Register start",
+      "details": "noah.1775659956696@example.com"
+    },
+    {
+      "at": "2026-04-08T14:54:54.046Z",
+      "actor": "Ava Khan 1775659956696",
+      "action": "Onboarding complete",
+      "details": ""
+    },
+    {
+      "at": "2026-04-08T14:54:54.047Z",
+      "actor": "Noah Ali 1775659956696",
+      "action": "Onboarding complete",
+      "details": ""
+    },
+    {
+      "at": "2026-04-08T14:54:54.057Z",
+      "actor": "Liam Chen 1775659956696",
+      "action": "Onboarding complete",
+      "details": ""
+    },
+    {
+      "at": "2026-04-08T14:54:58.509Z",
+      "actor": "Noah Ali 1775659956696",
+      "action": "Browsed jobs",
+      "details": ""
+    },
+    {
+      "at": "2026-04-08T14:54:58.605Z",
+      "actor": "Ava Khan 1775659956696",
+      "action": "Browsed jobs",
+      "details": ""
+    },
+    {
+      "at": "2026-04-08T14:54:58.621Z",
+      "actor": "Liam Chen 1775659956696",
+      "action": "Browsed jobs",
+      "details": ""
+    },
+    {
+      "at": "2026-04-08T14:55:37.551Z",
+      "actor": "SYSTEM",
+      "action": "Concurrent applications submitted",
+      "details": "3 applications"
+    },
+    {
+      "at": "2026-04-08T14:56:01.004Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=1dd1016e-2340-411d-ad13-d7a19fefaeb8 candidates=0"
+    },
+    {
+      "at": "2026-04-08T14:56:05.217Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=1dd1016e-2340-411d-ad13-d7a19fefaeb8 candidates=0"
+    },
+    {
+      "at": "2026-04-08T14:56:22.362Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=1dd1016e-2340-411d-ad13-d7a19fefaeb8 candidates=0"
+    },
+    {
+      "at": "2026-04-08T14:56:26.625Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=1dd1016e-2340-411d-ad13-d7a19fefaeb8 candidates=0"
+    },
+    {
+      "at": "2026-04-08T14:56:30.875Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=1dd1016e-2340-411d-ad13-d7a19fefaeb8 candidates=0"
+    },
+    {
+      "at": "2026-04-08T14:56:45.624Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=1dd1016e-2340-411d-ad13-d7a19fefaeb8 candidates=0"
+    },
+    {
+      "at": "2026-04-08T14:56:49.875Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=1dd1016e-2340-411d-ad13-d7a19fefaeb8 candidates=0"
+    },
+    {
+      "at": "2026-04-08T14:56:54.008Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=1dd1016e-2340-411d-ad13-d7a19fefaeb8 candidates=0"
+    },
+    {
+      "at": "2026-04-08T14:56:58.593Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=1dd1016e-2340-411d-ad13-d7a19fefaeb8 candidates=0"
+    },
+    {
+      "at": "2026-04-08T14:57:02.686Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=1dd1016e-2340-411d-ad13-d7a19fefaeb8 candidates=0"
+    },
+    {
+      "at": "2026-04-08T14:57:06.701Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=1dd1016e-2340-411d-ad13-d7a19fefaeb8 candidates=0"
+    },
+    {
+      "at": "2026-04-08T14:57:10.833Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=1dd1016e-2340-411d-ad13-d7a19fefaeb8 candidates=0"
+    },
+    {
+      "at": "2026-04-08T14:57:14.889Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=1dd1016e-2340-411d-ad13-d7a19fefaeb8 candidates=0"
+    },
+    {
+      "at": "2026-04-08T14:57:19.116Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=1dd1016e-2340-411d-ad13-d7a19fefaeb8 candidates=0"
+    },
+    {
+      "at": "2026-04-08T14:57:23.140Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=1dd1016e-2340-411d-ad13-d7a19fefaeb8 candidates=0"
+    },
+    {
+      "at": "2026-04-08T14:57:27.569Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=1dd1016e-2340-411d-ad13-d7a19fefaeb8 candidates=0"
+    },
+    {
+      "at": "2026-04-08T14:57:31.556Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=1dd1016e-2340-411d-ad13-d7a19fefaeb8 candidates=0"
+    },
+    {
+      "at": "2026-04-08T14:57:35.768Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=1dd1016e-2340-411d-ad13-d7a19fefaeb8 candidates=0"
+    },
+    {
+      "at": "2026-04-08T14:57:39.969Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=e6aed85a-e6a1-4b8c-b91d-d9c0ab280b94 candidates=0"
+    },
+    {
+      "at": "2026-04-08T14:57:47.014Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=e6aed85a-e6a1-4b8c-b91d-d9c0ab280b94 candidates=0"
+    },
+    {
+      "at": "2026-04-08T14:57:51.124Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=e6aed85a-e6a1-4b8c-b91d-d9c0ab280b94 candidates=0"
+    },
+    {
+      "at": "2026-04-08T14:57:55.324Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=e6aed85a-e6a1-4b8c-b91d-d9c0ab280b94 candidates=0"
+    },
+    {
+      "at": "2026-04-08T14:57:59.436Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=e6aed85a-e6a1-4b8c-b91d-d9c0ab280b94 candidates=0"
+    },
+    {
+      "at": "2026-04-08T14:58:03.718Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=e6aed85a-e6a1-4b8c-b91d-d9c0ab280b94 candidates=0"
+    },
+    {
+      "at": "2026-04-08T14:58:07.811Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=e6aed85a-e6a1-4b8c-b91d-d9c0ab280b94 candidates=0"
+    },
+    {
+      "at": "2026-04-08T14:58:11.838Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=e6aed85a-e6a1-4b8c-b91d-d9c0ab280b94 candidates=0"
+    },
+    {
+      "at": "2026-04-08T14:58:15.903Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=e6aed85a-e6a1-4b8c-b91d-d9c0ab280b94 candidates=0"
+    },
+    {
+      "at": "2026-04-08T14:58:19.965Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=e6aed85a-e6a1-4b8c-b91d-d9c0ab280b94 candidates=0"
+    },
+    {
+      "at": "2026-04-08T14:58:24.007Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=e6aed85a-e6a1-4b8c-b91d-d9c0ab280b94 candidates=0"
+    },
+    {
+      "at": "2026-04-08T14:58:28.500Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=e6aed85a-e6a1-4b8c-b91d-d9c0ab280b94 candidates=0"
+    },
+    {
+      "at": "2026-04-08T14:58:33.106Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=e6aed85a-e6a1-4b8c-b91d-d9c0ab280b94 candidates=0"
+    },
+    {
+      "at": "2026-04-08T14:58:38.129Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=e6aed85a-e6a1-4b8c-b91d-d9c0ab280b94 candidates=0"
+    },
+    {
+      "at": "2026-04-08T14:58:42.446Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=e6aed85a-e6a1-4b8c-b91d-d9c0ab280b94 candidates=0"
+    },
+    {
+      "at": "2026-04-08T14:58:46.532Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=e6aed85a-e6a1-4b8c-b91d-d9c0ab280b94 candidates=0"
+    },
+    {
+      "at": "2026-04-08T14:58:51.030Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=e6aed85a-e6a1-4b8c-b91d-d9c0ab280b94 candidates=0"
+    },
+    {
+      "at": "2026-04-08T14:58:55.429Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=e6aed85a-e6a1-4b8c-b91d-d9c0ab280b94 candidates=0"
+    },
+    {
+      "at": "2026-04-08T14:58:59.666Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=e6aed85a-e6a1-4b8c-b91d-d9c0ab280b94 candidates=0"
+    },
+    {
+      "at": "2026-04-08T14:59:04.375Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=e6aed85a-e6a1-4b8c-b91d-d9c0ab280b94 candidates=0"
+    },
+    {
+      "at": "2026-04-08T14:59:09.402Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=e6aed85a-e6a1-4b8c-b91d-d9c0ab280b94 candidates=0"
+    },
+    {
+      "at": "2026-04-08T14:59:14.353Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=e6aed85a-e6a1-4b8c-b91d-d9c0ab280b94 candidates=0"
+    },
+    {
+      "at": "2026-04-08T14:59:19.077Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=e6aed85a-e6a1-4b8c-b91d-d9c0ab280b94 candidates=0"
+    },
+    {
+      "at": "2026-04-08T14:59:23.148Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=e6aed85a-e6a1-4b8c-b91d-d9c0ab280b94 candidates=0"
+    },
+    {
+      "at": "2026-04-08T14:59:27.507Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=e6aed85a-e6a1-4b8c-b91d-d9c0ab280b94 candidates=0"
+    },
+    {
+      "at": "2026-04-08T14:59:32.711Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=e6aed85a-e6a1-4b8c-b91d-d9c0ab280b94 candidates=0"
+    },
+    {
+      "at": "2026-04-08T14:59:36.998Z",
+      "actor": "HR-1",
+      "action": "Polled analytics",
+      "details": "job=e6aed85a-e6a1-4b8c-b91d-d9c0ab280b94 candidates=0"
+    },
+    {
+      "at": "2026-04-08T15:00:05.913Z",
+      "actor": "Ava Khan 1775659956696",
+      "action": "Duplicate apply attempt",
+      "details": "status=409"
+    },
+    {
+      "at": "2026-04-08T15:00:06.680Z",
+      "actor": "SYSTEM",
+      "action": "Invalid input test /api/apply without job_id",
+      "details": "status=400"
+    },
+    {
+      "at": "2026-04-08T15:00:13.139Z",
+      "actor": "HR-1",
+      "action": "Session expiration API check",
+      "details": "status=401"
+    },
+    {
+      "at": "2026-04-08T15:00:15.833Z",
+      "actor": "Noah Ali 1775659956696",
+      "action": "Network delay simulation on /jobs",
+      "details": "2683ms"
+    },
+    {
+      "at": "2026-04-08T15:00:18.584Z",
+      "actor": "SYSTEM",
+      "action": "Multiple HR concurrent edit simulation",
+      "details": "POST-as-edit statuses=401/200"
+    }
+  ]
+}

@@ -53,10 +53,21 @@ export async function POST(request: Request) {
         // Applicant-side submission only persists the application.
         // ATS scoring/matching runs in HR/review stages.
 
-        // 2. Upload resume to Supabase Storage (if configured, ignoring for now if bucket doesn't exist)
-        // const { data: fileData, error: uploadError } = await supabase.storage
-        //   .from('resumes')
-        //   .upload(`${jobId}/${Date.now()}_${resumeFile.name}`, resumeFile);
+        // 2. Upload resume to Supabase Storage.
+        const safeName = (resumeFile.name || "resume.pdf").replace(/[^a-zA-Z0-9._-]/g, "_");
+        const resumePath = `${jobId}/${authUser.id}/${Date.now()}_${safeName}`;
+        const { data: uploaded, error: uploadError } = await supabase.storage
+            .from('resumes')
+            .upload(resumePath, resumeFile, { upsert: true, contentType: resumeFile.type || "application/pdf" });
+        if (uploadError || !uploaded?.path) {
+            return NextResponse.json(
+                {
+                    error: 'Failed to upload resume.',
+                    details: uploadError?.message,
+                },
+                { status: 500 }
+            );
+        }
 
         // 3. Save application using current schema:
         // applications(job_id, user_id, resume_snapshot_url, current_stage, ...)
@@ -88,7 +99,7 @@ export async function POST(request: Request) {
                 {
                     job_id: jobId,
                     user_id: authUser.id,
-                    resume_snapshot_url: null
+                    resume_snapshot_url: uploaded.path
                 }
             ])
             .select()

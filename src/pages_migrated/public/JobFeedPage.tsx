@@ -177,7 +177,9 @@ export const JobFeedPage = () => {
                     <div className="flex-1 min-w-0">
                       <div className="flex justify-between items-start">
                         <div>
-                          <h3 className="text-lg font-semibold text-slate-900 group-hover:text-indigo-600">{job.title}</h3>
+                          <Link href={`/jobs/${job.id}`} className="text-lg font-semibold text-slate-900 transition hover:text-indigo-600">
+                            {job.title}
+                          </Link>
                           <p className="text-slate-500 font-medium">{job.company}</p>
                         </div>
                         <Badge variant="secondary">Published</Badge>
@@ -211,15 +213,20 @@ export const JobFeedPage = () => {
                       </div>
                     </div>
                     <div className="self-center">
-                      {appliedJobIds.has(job.id) ? (
-                        <Link href={applicationByJobId[job.id] ? `/dashboard/applicant/applications/${applicationByJobId[job.id]}` : "/dashboard/applicant/applications"}>
-                          <Button variant="secondary" className="rounded-lg">Already Applied</Button>
+                      <div className="flex items-center gap-2">
+                        <Link href={`/jobs/${job.id}`}>
+                          <Button variant="ghost" className="rounded-lg">View</Button>
                         </Link>
-                      ) : (
-                        <Link href={`/jobs/${job.id}/apply`}>
-                          <Button variant="outline" className="rounded-lg">Apply</Button>
-                        </Link>
-                      )}
+                        {appliedJobIds.has(job.id) ? (
+                          <Link href={applicationByJobId[job.id] ? `/dashboard/applicant/applications/${applicationByJobId[job.id]}` : "/dashboard/applicant/applications"}>
+                            <Button variant="secondary" className="rounded-lg">Already Applied</Button>
+                          </Link>
+                        ) : (
+                          <Link href={`/jobs/${job.id}/apply`}>
+                            <Button variant="outline" className="rounded-lg">Apply</Button>
+                          </Link>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </CardContent>

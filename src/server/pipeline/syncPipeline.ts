@@ -40,7 +40,9 @@ export async function syncPipelineStep(applicationId: string) {
     .eq("id", applicationId);
 
   const missingPipelineStepColumn =
-    (updateError?.message || "").includes("Could not find the 'pipeline_step' column");
+    (updateError?.message || "").includes("Could not find the 'pipeline_step' column") ||
+    (updateError?.message || "").includes("column applications.pipeline_step does not exist") ||
+    (updateError?.message || "").includes('column "pipeline_step" does not exist');
   if (missingPipelineStepColumn) {
     await admin
       .from("applications")
