@@ -19,13 +19,20 @@ type AppRow = {
 export default function Page() {
   const [rows, setRows] = useState<AppRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("/api/applicant/applications");
-        const json = await res.json();
-        if (res.ok) setRows(json.applications || []);
+        const res = await fetch("/api/applicant/applications", { cache: "no-store" });
+        const json = await res.json().catch(() => ({}));
+        if (res.ok) {
+          setRows(json.applications || []);
+          setErrorMessage("");
+        } else {
+          setRows([]);
+          setErrorMessage(json.error || "Failed to load applications.");
+        }
       } finally {
         setLoading(false);
       }
@@ -43,6 +50,7 @@ export default function Page() {
           <Button className="rounded-lg">Explore Jobs</Button>
         </Link>
       </div>
+      {!loading && errorMessage ? <p className="text-sm text-red-600">{errorMessage}</p> : null}
       {loading ? <PageLoadingSkeleton /> : null}
       {!loading ? (
         <Card className="rounded-2xl border-slate-200/80 shadow-sm">

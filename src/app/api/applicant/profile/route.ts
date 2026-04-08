@@ -17,9 +17,17 @@ type ProfilePayload = {
   isProfileComplete?: boolean;
 };
 
-const isMissingUsersProfileColumnsError = (message?: string) =>
-  (message || "").includes("Could not find the 'is_profile_complete' column") ||
-  (message || "").includes("Could not find the 'profile' column");
+const isMissingUsersProfileColumnsError = (message?: string) => {
+  const value = (message || "").toLowerCase();
+  return (
+    value.includes("could not find the 'is_profile_complete' column") ||
+    value.includes("could not find the 'profile' column") ||
+    value.includes("column users.is_profile_complete does not exist") ||
+    value.includes("column users.profile does not exist") ||
+    value.includes('column "is_profile_complete" does not exist') ||
+    value.includes('column "profile" does not exist')
+  );
+};
 
 export async function GET() {
   try {

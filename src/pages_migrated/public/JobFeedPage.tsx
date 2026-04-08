@@ -22,6 +22,8 @@ type PublicJob = {
 export const JobFeedPage = () => {
   const [jobs, setJobs] = useState<PublicJob[]>([]);
   const [loading, setLoading] = useState(true);
+  const [appliedJobIds, setAppliedJobIds] = useState<Set<string>>(new Set());
+  const [applicationByJobId, setApplicationByJobId] = useState<Record<string, string>>({});
   const [query, setQuery] = useState('');
   const [location, setLocation] = useState('');
   const [types, setTypes] = useState<string[]>([]);
@@ -29,13 +31,32 @@ export const JobFeedPage = () => {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch('/api/jobs');
+        const res = await fetch('/api/jobs', { cache: 'no-store' });
         const json = await res.json();
         if (res.ok) {
           setJobs(json.jobs || []);
         }
       } finally {
         setLoading(false);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/api/applicant/applications', { cache: 'no-store' });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) return;
+        const rows = (json.applications || []) as Array<{ id: string; job_id: string }>;
+        setAppliedJobIds(new Set(rows.map((r) => r.job_id)));
+        const mapping: Record<string, string> = {};
+        rows.forEach((r) => {
+          mapping[r.job_id] = r.id;
+        });
+        setApplicationByJobId(mapping);
+      } catch {
+        // Ignore for anonymous visitors.
       }
     })();
   }, []);
@@ -190,9 +211,15 @@ export const JobFeedPage = () => {
                       </div>
                     </div>
                     <div className="self-center">
-                      <Link href={`/jobs/${job.id}/apply`}>
-                        <Button variant="outline" className="rounded-lg">Apply</Button>
-                      </Link>
+                      {appliedJobIds.has(job.id) ? (
+                        <Link href={applicationByJobId[job.id] ? `/dashboard/applicant/applications/${applicationByJobId[job.id]}` : "/dashboard/applicant/applications"}>
+                          <Button variant="secondary" className="rounded-lg">Already Applied</Button>
+                        </Link>
+                      ) : (
+                        <Link href={`/jobs/${job.id}/apply`}>
+                          <Button variant="outline" className="rounded-lg">Apply</Button>
+                        </Link>
+                      )}
                     </div>
                   </div>
                 </CardContent>

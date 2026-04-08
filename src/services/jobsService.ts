@@ -34,17 +34,11 @@ export const createJob = async (jobInput: JobInput, companyId: string) => {
     return payload.jobId as string;
 };
 
-export const getJobsByCompany = async (companyId: string) => {
-    const { data: jobs, error } = await supabase
-        .from('jobs')
-        .select(`
-      *,
-      job_skills ( skill_name ),
-      applications ( id )
-    `)
-        .eq('company_id', companyId)
-        .order('created_at', { ascending: false });
-
-    if (error) throw error;
-    return jobs;
+export const getJobsByCompany = async () => {
+    const response = await fetch('/api/hr/jobs', { cache: 'no-store' });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        throw new Error(payload?.error || 'Failed to fetch HR jobs');
+    }
+    return (payload?.jobs || []) as Array<Record<string, unknown>>;
 };

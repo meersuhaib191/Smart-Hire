@@ -8,11 +8,29 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const user = await requireAuthUser();
     const admin = createSupabaseAdmin();
 
-    const { data: application, error: appError } = await admin
+    let { data: application, error: appError } = await admin
       .from("applications")
       .select("id, user_id, job_id, pipeline_step, current_stage, applied_at, jobs(id,title,description)")
       .eq("id", id)
       .single();
+
+    const missingPipelineStepColumn =
+      (appError?.message || "").includes("Could not find the 'pipeline_step' column");
+    if (missingPipelineStepColumn) {
+      const fallback = await admin
+        .from("applications")
+        .select("id, user_id, job_id, current_stage, applied_at, jobs(id,title,description)")
+        .eq("id", id)
+        .single();
+      application = fallback.data as typeof application;
+      appError = fallback.error;
+      if (application) {
+        application = {
+          ...application,
+          pipeline_step: application.current_stage || "APPLIED",
+        };
+      }
+    }
 
     if (appError || !application) {
       return NextResponse.json({ error: "Application not found." }, { status: 404 });

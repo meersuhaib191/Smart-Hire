@@ -64,17 +64,46 @@ async function resolveCompanyId(
   return { companyId: created.id, error: "" };
 }
 
+async function findCompanyIdByHint(
+  admin: ReturnType<typeof createSupabaseAdmin>,
+  user: Awaited<ReturnType<typeof requireAuthUser>>
+) {
+  const metadataCompany = String(user.user_metadata?.company || "").trim();
+  const profileCompany = String((user.user_metadata?.profile as { companyName?: string } | undefined)?.companyName || "").trim();
+  const candidate = metadataCompany || profileCompany;
+  if (!candidate) return "";
+
+  if (UUID_REGEX.test(candidate)) {
+    const { data, error } = await admin.from("companies").select("id").eq("id", candidate).maybeSingle();
+    if (error) return "";
+    return (data?.id as string) || "";
+  }
+
+  const { data, error } = await admin
+    .from("companies")
+    .select("id")
+    .eq("name", candidate)
+    .maybeSingle();
+  if (error) return "";
+  return (data?.id as string) || "";
+}
+
 export async function GET() {
   try {
     const user = await requireAuthUser();
     requireHr(user);
 
     const admin = createSupabaseAdmin();
-    const { data, error } = await admin
+    const companyId = await findCompanyIdByHint(admin, user);
+    let query = admin
       .from("jobs")
-      .select("id, title, company_id, status, created_at")
+      .select("id, title, company_id, status, created_at, applications(id)")
       .order("created_at", { ascending: false })
       .limit(100);
+    if (companyId) {
+      query = query.eq("company_id", companyId);
+    }
+    const { data, error } = await query;
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });

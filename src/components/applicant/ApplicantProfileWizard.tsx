@@ -65,6 +65,7 @@ export function ApplicantProfileWizard({ mode }: { mode: WizardMode }) {
         const meRes = await fetch("/api/auth/me");
         const meJson = await meRes.json();
         const email = meJson?.user?.email || "";
+        const meName = meJson?.user?.name || "";
 
         const profileRes = await fetch("/api/applicant/profile");
         const profileJson = await profileRes.json();
@@ -76,7 +77,7 @@ export function ApplicantProfileWizard({ mode }: { mode: WizardMode }) {
         setForm((prev) => ({
           ...prev,
           email,
-          fullName: server.fullName || prev.fullName,
+          fullName: server.fullName || meName || prev.fullName,
           phone: server.phone || prev.phone,
           location: server.location || prev.location,
           skills: server.skills || prev.skills,

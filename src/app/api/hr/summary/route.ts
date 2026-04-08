@@ -14,10 +14,29 @@ export async function GET() {
       .from("applications")
       .select("*", { count: "exact", head: true });
 
-    const { data: appRows } = await admin
+    let { data: appRows, error: appRowsError } = await admin
       .from("applications")
       .select("pipeline_step, applied_at")
       .limit(5000);
+
+    const missingPipelineStepColumn =
+      (appRowsError?.message || "").includes("Could not find the 'pipeline_step' column");
+    if (missingPipelineStepColumn) {
+      const fallback = await admin
+        .from("applications")
+        .select("current_stage, applied_at")
+        .limit(5000);
+      appRows = ((fallback.data || []) as Array<{ current_stage?: string | null; applied_at?: string | null }>).map(
+        (r) => ({
+          pipeline_step: r.current_stage || "APPLIED",
+          applied_at: r.applied_at || null,
+        })
+      ) as typeof appRows;
+      appRowsError = fallback.error;
+    }
+    if (appRowsError) {
+      return NextResponse.json({ error: appRowsError.message }, { status: 500 });
+    }
 
     const rows = appRows || [];
     const interviewingCount = rows.filter((r) => r.pipeline_step === "INTERVIEW").length;

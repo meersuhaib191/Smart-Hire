@@ -33,6 +33,7 @@ export const HRDashboard = () => {
     applications?: Array<{ id: string }>;
   }>>([]);
   const [isLoadingJobs, setIsLoadingJobs] = useState(true);
+  const [jobsError, setJobsError] = useState<string | null>(null);
   const [summary, setSummary] = useState<{
     activeJobs: number;
     totalApplicants: number;
@@ -44,19 +45,26 @@ export const HRDashboard = () => {
 
   useEffect(() => {
     const fetchJobs = async () => {
-      if (user?.company) {
-        try {
-          const fetchedJobs = await getJobsByCompany(user.company);
-          setJobs(fetchedJobs);
-        } catch (error) {
-          console.error('Failed to fetch jobs:', error);
-        }
+      try {
+        const fetchedJobs = (await getJobsByCompany()) as Array<{
+          id: string;
+          title: string;
+          created_at: string;
+          status: string;
+          applications?: Array<{ id: string }>;
+        }>;
+        setJobs(fetchedJobs);
+        setJobsError(null);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to fetch jobs.";
+        setJobsError(message);
+        console.error('Failed to fetch jobs:', error);
       }
       setIsLoadingJobs(false);
     };
 
     fetchJobs();
-  }, [user]);
+  }, [user?.id]);
 
   useEffect(() => {
     (async () => {
@@ -211,6 +219,8 @@ export const HRDashboard = () => {
           <div className="space-y-4">
             {isLoadingJobs ? (
               <div className="text-center py-8 text-slate-500">Loading jobs...</div>
+            ) : jobsError ? (
+              <div className="text-center py-8 text-red-600">{jobsError}</div>
             ) : jobs.length > 0 ? (
               jobs.map((job) => (
                 <div key={job.id} className="flex items-center justify-between border-b border-slate-100 last:border-0 pb-4 last:pb-0">

@@ -39,14 +39,19 @@ const stageLabel = (value?: string | null) => {
 export const ApplicantDashboard = () => {
   const [applications, setApplications] = useState<ApplicationRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch('/api/applicant/applications');
-        const json = await res.json();
+        const res = await fetch('/api/applicant/applications', { cache: 'no-store' });
+        const json = await res.json().catch(() => ({}));
         if (res.ok) {
           setApplications(json.applications || []);
+          setErrorMessage('');
+        } else {
+          setApplications([]);
+          setErrorMessage(json.error || 'Failed to load applications.');
         }
       } finally {
         setLoading(false);
@@ -102,6 +107,7 @@ export const ApplicantDashboard = () => {
           </Link>
         </div>
       </div>
+      {!loading && errorMessage ? <p className="text-sm text-red-600">{errorMessage}</p> : null}
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

@@ -6,16 +6,24 @@ import { Header } from './dashboard/Header';
 import { useStore } from '@/store/useStore';
 
 export const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
-  const { isAuthenticated, user } = useStore();
+  const { isAuthenticated, hasCheckedSession, user } = useStore();
   const router = useRouter();
   const [desktopCollapsed, setDesktopCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (hasCheckedSession && !isAuthenticated) {
       router.push('/login');
     }
-  }, [isAuthenticated, router]);
+  }, [hasCheckedSession, isAuthenticated, router]);
+
+  if (!hasCheckedSession) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-slate-50 text-sm text-slate-500">
+        Restoring session...
+      </div>
+    );
+  }
 
   if (!isAuthenticated) return null;
 

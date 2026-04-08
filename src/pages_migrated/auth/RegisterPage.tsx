@@ -110,6 +110,7 @@ export const RegisterPage = () => {
           </div>
 
           <form className="mt-8 space-y-4" onSubmit={handleSubmit(onSubmit)}>
+            <input type="hidden" {...register('role')} />
             <Input
               label="Full Name"
               type="text"

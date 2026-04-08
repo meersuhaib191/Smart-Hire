@@ -1,29 +1,66 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/Card";
 import { toast } from "sonner";
 
-export default function ApplyPage({ params }: { params: { id: string } }) {
+export default function ApplyPage() {
+    const { id } = useParams<{ id: string }>();
+    const router = useRouter();
+    const jobId = useMemo(() => id || "", [id]);
     const [loading, setLoading] = useState(false);
+    const [loadingProfile, setLoadingProfile] = useState(true);
     const [success, setSuccess] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
-    const [aiResult, setAiResult] = useState<{
-        score?: number;
-        matched_skills?: string[];
-        missing_skills?: string[];
-    } | null>(null);
+    const [applicantName, setApplicantName] = useState("");
+    const [applicantEmail, setApplicantEmail] = useState("");
+    useEffect(() => {
+        (async () => {
+            try {
+                const meRes = await fetch("/api/auth/me");
+                const meJson = await meRes.json().catch(() => ({}));
+                if (!meRes.ok) {
+                    setErrorMessage(meJson?.error || "Please log in before applying.");
+                    return;
+                }
+                setApplicantEmail(meJson?.user?.email || "");
+                setApplicantName(meJson?.user?.name || "");
+
+                const profileRes = await fetch("/api/applicant/profile");
+                const profileJson = await profileRes.json().catch(() => ({}));
+                if (profileRes.ok && profileJson?.profile?.fullName) {
+                    setApplicantName(profileJson.profile.fullName);
+                }
+            } finally {
+                setLoadingProfile(false);
+            }
+        })();
+    }, []);
+
+    useEffect(() => {
+        if (!success) return;
+        const timer = window.setTimeout(() => {
+            router.push("/jobs");
+        }, 3000);
+        return () => window.clearTimeout(timer);
+    }, [router, success]);
 
     async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
+        if (!jobId) {
+            setErrorMessage("Invalid job id.");
+            return;
+        }
         setLoading(true);
         setErrorMessage(null);
 
         const formData = new FormData(e.currentTarget);
-        formData.append("job_id", params.id);
+        formData.append("job_id", jobId);
 
         try {
             const res = await fetch("/api/apply", {
@@ -33,7 +70,6 @@ export default function ApplyPage({ params }: { params: { id: string } }) {
 
             const data = await res.json().catch(() => ({}));
             if (res.ok) {
-                setAiResult(data.ats_analysis);
                 setSuccess(true);
             } else {
                 const message = data?.error || "Failed to submit application";
@@ -52,85 +88,63 @@ export default function ApplyPage({ params }: { params: { id: string } }) {
 
     if (success) {
         return (
-            <div className="max-w-2xl mx-auto p-8 mt-10 border rounded-xl shadow-sm bg-card text-center space-y-4">
-                <h1 className="text-3xl font-bold text-green-600 mb-2">Application Submitted!</h1>
-                <p className="text-gray-600 dark:text-gray-300">Your resume was analyzed by our AI system.</p>
-
-                {aiResult && (
-                    <div className="mt-8 p-6 bg-muted rounded-lg text-left">
-                        <h2 className="text-xl font-semibold mb-2">AI Match Analysis</h2>
-                        {(() => {
-                            const score = aiResult.score ?? 0;
-                            const scoreClass = score >= 70 ? "text-green-500" : score >= 40 ? "text-yellow-500" : "text-red-500";
-                            return (
-                        <div className="text-5xl font-bold mb-4">
-                            <span className={scoreClass}>
-                                {score.toFixed(1)}%
-                            </span>
-                        </div>
-                            );
-                        })()}
-
-                        <div className="grid grid-cols-2 gap-4 mt-6">
-                            <div>
-                                <h3 className="font-medium text-green-600 mb-2">Matched Skills</h3>
-                                <div className="flex flex-wrap gap-1">
-                                    {aiResult.matched_skills?.map((s: string) => (
-                                        <span key={s} className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded">{s}</span>
-                                    ))}
-                                    {(!aiResult.matched_skills || aiResult.matched_skills.length === 0) && <span className="text-xs text-muted-foreground">None found</span>}
-                                </div>
-                            </div>
-                            <div>
-                                <h3 className="font-medium text-red-600 mb-2">Missing Skills</h3>
-                                <div className="flex flex-wrap gap-1">
-                                    {aiResult.missing_skills?.map((s: string) => (
-                                        <span key={s} className="px-2 py-1 text-xs border border-red-200 text-red-700 rounded">{s}</span>
-                                    ))}
-                                    {(!aiResult.missing_skills || aiResult.missing_skills.length === 0) && <span className="text-xs text-muted-foreground">None</span>}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                <Button onClick={() => window.location.reload()} className="mt-8" variant="outline">
-                    Submit Another
-                </Button>
+            <div className="mx-auto mt-10 w-full max-w-3xl space-y-4">
+                <Card className="rounded-2xl border-slate-200/80 shadow-sm text-center">
+                    <CardHeader>
+                        <CardTitle className="text-3xl font-bold text-green-600">Application Submitted!</CardTitle>
+                        <CardDescription>Your application has been submitted successfully.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <p className="text-sm text-slate-600">
+                            Redirecting to jobs feed in a few seconds...
+                        </p>
+                        <Button onClick={() => router.push("/jobs")} className="mt-2" variant="outline">
+                            Go to Jobs Now
+                        </Button>
+                    </CardContent>
+                </Card>
             </div>
         );
     }
 
     return (
-        <div className="max-w-2xl mx-auto p-8 mt-10 border rounded-xl shadow-sm bg-card">
-            <h1 className="text-2xl font-bold mb-6">Apply for Job #{params.id}</h1>
+        <div className="mx-auto mt-10 w-full max-w-3xl">
+            <Card className="rounded-2xl border-slate-200/80 shadow-sm">
+                <CardHeader>
+                    <CardTitle className="text-2xl font-semibold tracking-tight text-slate-900">Submit Application</CardTitle>
+                    <CardDescription>Complete your application with your resume. Your profile details are auto-filled.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <form onSubmit={handleSubmit} className="space-y-6">
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <div className="space-y-2">
+                                <Label htmlFor="applicant_name">Full Name</Label>
+                                <Input id="applicant_name" value={applicantName} disabled placeholder={loadingProfile ? "Loading..." : "Name from profile"} />
+                            </div>
 
-            <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="space-y-2">
-                    <Label htmlFor="applicant_name">Full Name</Label>
-                    <Input id="applicant_name" name="applicant_name" required placeholder="John Doe" />
-                </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="applicant_email">Email</Label>
+                                <Input id="applicant_email" value={applicantEmail} disabled placeholder={loadingProfile ? "Loading..." : "Email from account"} />
+                            </div>
+                        </div>
 
-                <div className="space-y-2">
-                    <Label htmlFor="applicant_email">Email</Label>
-                    <Input id="applicant_email" name="applicant_email" type="email" required placeholder="john@example.com" />
-                </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="resume">Resume (PDF)</Label>
+                            <Input id="resume" name="resume" type="file" accept=".pdf" required />
+                        </div>
 
-                <div className="space-y-2">
-                    <Label htmlFor="resume">Resume (PDF)</Label>
-                    <Input id="resume" name="resume" type="file" accept=".pdf" required />
-                </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="cover_letter">Cover Letter (Optional)</Label>
+                            <Textarea id="cover_letter" name="cover_letter" placeholder="Why are you a good fit?" rows={4} />
+                        </div>
 
-                <div className="space-y-2">
-                    <Label htmlFor="cover_letter">Cover Letter (Optional)</Label>
-                    <Textarea id="cover_letter" name="cover_letter" placeholder="Why are you a good fit?" rows={4} />
-                </div>
-
-                <Button type="submit" className="w-full" disabled={loading}>
-                    {loading ? "Analyzing Resume..." : "Submit Application"}
-                </Button>
-                {errorMessage ? <p className="text-sm text-red-600">{errorMessage}</p> : null}
-            </form>
+                        <Button type="submit" className="w-full rounded-lg" disabled={loading || loadingProfile || !jobId}>
+                            {loading ? "Submitting..." : "Submit Application"}
+                        </Button>
+                        {errorMessage ? <p className="text-sm text-red-600">{errorMessage}</p> : null}
+                    </form>
+                </CardContent>
+            </Card>
         </div>
     );
 }

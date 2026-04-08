@@ -15,7 +15,6 @@ const supabaseAnonKey =
         : process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY || '';
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseAnonKey;
 const supabase = createClient(supabaseUrl, supabaseKey);
-const aiBackendUrl = (process.env.AI_BACKEND_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
 
 export async function POST(request: Request) {
     try {
@@ -40,39 +39,19 @@ export async function POST(request: Request) {
 
         const { data: jobRow, error: jobLookupError } = await supabase
             .from('jobs')
-            .select('description')
+            .select('id')
             .eq('id', jobId)
             .maybeSingle();
 
-        if (jobLookupError || !jobRow?.description) {
+        if (jobLookupError || !jobRow?.id) {
             return NextResponse.json(
-                { error: "Job not found or missing description.", details: jobLookupError?.message },
+                { error: "Job not found.", details: jobLookupError?.message },
                 { status: 404 }
             );
         }
 
-        // 1. Send the file to Python AI Backend for scoring
-        const aiFormData = new FormData();
-        aiFormData.append('resume', resumeFile);
-        aiFormData.append('job_description', jobRow.description);
-
-        let aiResults = { score: 0, matched_skills: [], missing_skills: [] };
-
-        try {
-            const aiResponse = await fetch(`${aiBackendUrl}/analyze-resume`, {
-                method: 'POST',
-                body: aiFormData,
-            });
-
-            if (aiResponse.ok) {
-                aiResults = await aiResponse.json();
-            } else {
-                console.error("AI Backend Error:", await aiResponse.text());
-            }
-        } catch (aiError) {
-            console.error("Failed to connect to Python AI Backend:", aiError);
-            // We continue processing the application even if AI fails, just with a 0 score
-        }
+        // Applicant-side submission only persists the application.
+        // ATS scoring/matching runs in HR/review stages.
 
         // 2. Upload resume to Supabase Storage (if configured, ignoring for now if bucket doesn't exist)
         // const { data: fileData, error: uploadError } = await supabase.storage
@@ -98,7 +77,6 @@ export async function POST(request: Request) {
                 {
                     error: 'Failed to initialize applicant profile in database.',
                     details: ensureUserError.message,
-                    ats_analysis: aiResults
                 },
                 { status: 500 }
             );
@@ -122,7 +100,6 @@ export async function POST(request: Request) {
                     {
                         error: 'You have already applied to this job.',
                         details: dbError.message,
-                        ats_analysis: aiResults
                     },
                     { status: 409 }
                 );
@@ -131,7 +108,6 @@ export async function POST(request: Request) {
                 {
                     error: 'Failed to save application in Supabase.',
                     details: dbError.message,
-                    ats_analysis: aiResults
                 },
                 { status: 500 }
             );
@@ -141,7 +117,6 @@ export async function POST(request: Request) {
             success: true,
             message: "Application submitted successfully",
             application: appData,
-            ats_analysis: aiResults
         });
 
     } catch (error) {

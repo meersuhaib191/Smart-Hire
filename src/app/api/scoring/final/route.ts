@@ -75,13 +75,29 @@ export async function POST(request: Request) {
       console.error("refresh_job_rankings:", rpcError.message);
     }
 
-    await admin
+    const { error: updateError } = await admin
       .from("applications")
       .update({
         pipeline_step: "COMPLETE",
         current_stage: "OFFER",
       })
       .eq("id", applicationId);
+
+    const missingPipelineStepColumn =
+      (updateError?.message || "").includes("Could not find the 'pipeline_step' column") ||
+      (updateError?.message || "").includes("column applications.pipeline_step does not exist") ||
+      (updateError?.message || "").includes('column "pipeline_step" does not exist');
+
+    if (missingPipelineStepColumn) {
+      await admin
+        .from("applications")
+        .update({
+          current_stage: "OFFER",
+        })
+        .eq("id", applicationId);
+    } else if (updateError) {
+      return NextResponse.json({ error: "Failed to update pipeline stage.", detail: updateError.message }, { status: 500 });
+    }
 
     return NextResponse.json({
       success: true,

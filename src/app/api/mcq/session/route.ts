@@ -21,11 +21,29 @@ export async function GET(request: Request) {
     const cookieStore = await cookies();
     const admin = createSupabaseAdmin();
 
-    const { data: application, error: appError } = await admin
+    let { data: application, error: appError } = await admin
       .from("applications")
       .select("id, user_id, job_id, pipeline_step")
       .eq("id", applicationId)
       .maybeSingle();
+
+    const missingPipelineStepColumn =
+      (appError?.message || "").includes("Could not find the 'pipeline_step' column");
+    if (missingPipelineStepColumn) {
+      const fallback = await admin
+        .from("applications")
+        .select("id, user_id, job_id, current_stage")
+        .eq("id", applicationId)
+        .maybeSingle();
+      application = fallback.data as typeof application;
+      appError = fallback.error;
+      if (application) {
+        application = {
+          ...application,
+          pipeline_step: (application as { current_stage?: string | null }).current_stage || "APPLIED",
+        };
+      }
+    }
 
     if (appError || !application) {
       return NextResponse.json({ error: "Application not found." }, { status: 404 });

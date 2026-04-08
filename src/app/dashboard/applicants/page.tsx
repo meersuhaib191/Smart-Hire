@@ -33,15 +33,18 @@ export default function ApplicantsDashboard() {
   const [candidates, setCandidates] = useState<CandidateRow[]>([]);
   const [loadingJobs, setLoadingJobs] = useState(true);
   const [loadingCandidates, setLoadingCandidates] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("/api/hr/jobs");
+        const res = await fetch("/api/hr/jobs", { cache: "no-store" });
         const json = await res.json();
         if (res.ok && json.jobs?.length) {
           setJobs(json.jobs);
           setJobId(json.jobs[0].id);
+        } else if (!res.ok) {
+          setErrorMessage(json.error || "Failed to load HR jobs.");
         }
       } finally {
         setLoadingJobs(false);
@@ -54,10 +57,14 @@ export default function ApplicantsDashboard() {
     (async () => {
       setLoadingCandidates(true);
       try {
-        const res = await fetch(`/api/hr/jobs/${jobId}/analytics`);
+        const res = await fetch(`/api/hr/jobs/${jobId}/analytics`, { cache: "no-store" });
         const json = await res.json();
         if (res.ok) {
           setCandidates(json.candidates || []);
+          setErrorMessage("");
+        } else {
+          setCandidates([]);
+          setErrorMessage(json.error || "Failed to load candidate analytics.");
         }
       } finally {
         setLoadingCandidates(false);
@@ -104,6 +111,7 @@ export default function ApplicantsDashboard() {
       </div>
 
       {loadingCandidates ? <PageLoadingSkeleton /> : null}
+      {!loadingCandidates && errorMessage ? <p className="text-sm text-red-600">{errorMessage}</p> : null}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {candidates.map((c) => {

@@ -60,6 +60,7 @@ interface User {
 interface AppState {
   user: User | null;
   isAuthenticated: boolean;
+  hasCheckedSession: boolean;
   isLoading: boolean;
   notifications: number;
 
@@ -77,6 +78,7 @@ interface AppState {
 export const useStore = create<AppState>((set) => ({
   user: null,
   isAuthenticated: false,
+  hasCheckedSession: false,
   isLoading: false,
   notifications: 3,
 
@@ -109,16 +111,21 @@ export const useStore = create<AppState>((set) => ({
 
       const appRole = normalizeRole(user.user_metadata.role as string);
       const isProfileComplete = Boolean(user.user_metadata.isProfileComplete);
-      await syncUserProfileOnServer(session.access_token, {
-        userId: user.id,
-        email: user.email!,
-        role: appRole,
-        name: user.user_metadata.name || 'User',
-        isProfileComplete,
-      });
+      try {
+        await syncUserProfileOnServer(session.access_token, {
+          userId: user.id,
+          email: user.email!,
+          role: appRole,
+          name: user.user_metadata.name || 'User',
+          isProfileComplete,
+        });
+      } catch (syncError) {
+        console.warn('sync-profile after login failed (non-blocking):', syncError);
+      }
 
       set({
         isAuthenticated: true,
+        hasCheckedSession: true,
         user: {
           id: user.id,
           email: user.email!,
@@ -177,13 +184,17 @@ export const useStore = create<AppState>((set) => ({
 
       if (data.session?.access_token) {
         const isProfileComplete = Boolean(createdAuthUser.user_metadata?.isProfileComplete);
-        await syncUserProfileOnServer(data.session.access_token, {
-          userId: createdAuthUser.id,
-          email,
-          role,
-          name,
-          isProfileComplete,
-        });
+        try {
+          await syncUserProfileOnServer(data.session.access_token, {
+            userId: createdAuthUser.id,
+            email,
+            role,
+            name,
+            isProfileComplete,
+          });
+        } catch (syncError) {
+          console.warn('sync-profile after register failed (non-blocking):', syncError);
+        }
       }
 
       if (data.session) {
@@ -191,6 +202,7 @@ export const useStore = create<AppState>((set) => ({
         const appRole = normalizeRole(user.user_metadata.role as string);
         set({
           isAuthenticated: true,
+          hasCheckedSession: true,
           user: {
             id: user.id,
             email: user.email!,
@@ -212,35 +224,48 @@ export const useStore = create<AppState>((set) => ({
   logout: async () => {
     set({ isLoading: true });
     await supabase.auth.signOut();
-    set({ user: null, isAuthenticated: false, isLoading: false });
+    set({ user: null, isAuthenticated: false, hasCheckedSession: true, isLoading: false });
   },
 
   checkSession: async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session) {
-      const user = session.user;
-      const appRole = normalizeRole(user.user_metadata.role as string);
-      const isProfileComplete = Boolean(user.user_metadata.isProfileComplete);
-      await syncUserProfileOnServer(session.access_token, {
-        userId: user.id,
-        email: user.email!,
-        role: appRole,
-        name: user.user_metadata.name || 'User',
-        isProfileComplete,
-      });
-
-      set({
-        isAuthenticated: true,
-        user: {
-          id: user.id,
-          email: user.email!,
-          name: user.user_metadata.name || 'User',
-          role: appRole,
-          isProfileComplete,
-          avatar: user.user_metadata.avatar,
-          company: user.user_metadata.company
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        const user = session.user;
+        const appRole = normalizeRole(user.user_metadata.role as string);
+        const isProfileComplete = Boolean(user.user_metadata.isProfileComplete);
+        try {
+          await syncUserProfileOnServer(session.access_token, {
+            userId: user.id,
+            email: user.email!,
+            role: appRole,
+            name: user.user_metadata.name || 'User',
+            isProfileComplete,
+          });
+        } catch (syncError) {
+          console.warn('sync-profile during checkSession failed (non-blocking):', syncError);
         }
-      });
+
+        set({
+          isAuthenticated: true,
+          hasCheckedSession: true,
+          user: {
+            id: user.id,
+            email: user.email!,
+            name: user.user_metadata.name || 'User',
+            role: appRole,
+            isProfileComplete,
+            avatar: user.user_metadata.avatar,
+            company: user.user_metadata.company
+          }
+        });
+        return;
+      }
+
+      set({ isAuthenticated: false, user: null, hasCheckedSession: true });
+    } catch (error) {
+      console.error('checkSession error:', error);
+      set({ isAuthenticated: false, user: null, hasCheckedSession: true });
     }
   },
 

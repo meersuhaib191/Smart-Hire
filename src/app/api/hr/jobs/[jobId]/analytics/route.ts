@@ -9,10 +9,27 @@ export async function GET(_request: Request, context: { params: Promise<{ jobId:
     const { jobId } = await context.params;
 
     const admin = createSupabaseAdmin();
-    const { data: apps, error: appsError } = await admin
+    let { data: apps, error: appsError } = await admin
       .from("applications")
       .select("id, user_id, pipeline_step")
       .eq("job_id", jobId);
+
+    const missingPipelineStepColumn =
+      (appsError?.message || "").includes("Could not find the 'pipeline_step' column");
+    if (missingPipelineStepColumn) {
+      const fallback = await admin
+        .from("applications")
+        .select("id, user_id, current_stage")
+        .eq("job_id", jobId);
+      apps = ((fallback.data || []) as Array<{ id: string; user_id: string; current_stage?: string | null }>).map(
+        (a) => ({
+          id: a.id,
+          user_id: a.user_id,
+          pipeline_step: a.current_stage || "APPLIED",
+        })
+      );
+      appsError = fallback.error;
+    }
 
     if (appsError) {
       return NextResponse.json({ error: appsError.message }, { status: 500 });
@@ -49,7 +66,7 @@ export async function GET(_request: Request, context: { params: Promise<{ jobId:
     const candidates = (apps || []).map((a) => ({
       applicationId: a.id,
       email: emailByUser[a.user_id as string] || "unknown",
-      pipelineStep: a.pipeline_step,
+      pipelineStep: (a.pipeline_step as string) || "APPLIED",
       finalScore: rankByApp[a.id]?.final_score ?? null,
       rankPosition: rankByApp[a.id]?.rank_position ?? null,
       stages: stagesByApp[a.id] || [],

@@ -31,11 +31,22 @@ export async function syncPipelineStep(applicationId: string) {
   else if (pipelineStep === "INTERVIEW") currentStage = "INTERVIEW";
   else if (passed.has("ATS")) currentStage = "SCREENING";
 
-  await admin
+  const { error: updateError } = await admin
     .from("applications")
     .update({
       pipeline_step: pipelineStep,
       current_stage: currentStage,
     })
     .eq("id", applicationId);
+
+  const missingPipelineStepColumn =
+    (updateError?.message || "").includes("Could not find the 'pipeline_step' column");
+  if (missingPipelineStepColumn) {
+    await admin
+      .from("applications")
+      .update({
+        current_stage: currentStage,
+      })
+      .eq("id", applicationId);
+  }
 }

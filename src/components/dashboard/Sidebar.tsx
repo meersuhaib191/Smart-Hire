@@ -9,8 +9,8 @@ import {
   Briefcase,
   Users,
   ClipboardCheck,
-  Settings,
   BarChart,
+  Settings,
   Sparkles,
   X,
   BrainCircuit,
@@ -29,9 +29,8 @@ const roleMenus: Record<UserRole, SidebarItem[]> = {
   applicant: [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', href: '/applicant/dashboard' },
     { id: 'jobs', icon: Briefcase, label: 'Jobs', href: '/jobs' },
-    { id: 'candidates', icon: Users, label: 'Candidates', href: '/dashboard/applicant/applications' },
-    { id: 'assessments', icon: ClipboardCheck, label: 'Assessments', href: '/dashboard/applicant/practice' },
-    { id: 'analytics', icon: BarChart, label: 'Analytics', href: '/dashboard/applicant/applications' },
+    { id: 'applications', icon: ClipboardCheck, label: 'My Applications', href: '/dashboard/applicant/applications' },
+    { id: 'practice', icon: ClipboardCheck, label: 'Practice', href: '/dashboard/applicant/practice' },
     { id: 'settings', icon: Settings, label: 'Profile', href: '/applicant/profile' },
   ],
   hr: [
