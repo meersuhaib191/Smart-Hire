@@ -7,7 +7,7 @@ export const createSupabaseAdmin = () => {
 
   if (!supabaseUrl || !serviceRoleKey) {
     throw new Error(
-      "Missing SUPABASE_SERVICE_ROLE_KEY or Supabase URL. ATS write operations require service role."
+      "Missing Supabase server env. Set SUPABASE_SERVICE_ROLE_KEY and one URL var (NEXT_PUBLIC_SUPABASE_URL or SUPABASE_URL)."
     );
   }
 
