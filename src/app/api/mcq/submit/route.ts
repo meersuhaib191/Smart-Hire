@@ -5,6 +5,7 @@ import { verifyMcqSessionToken } from "@/server/mcq/sessionToken";
 import { requireAuthUser, getAppRole } from "@/server/auth/session";
 import { checkRateLimit } from "@/server/security/rateLimit";
 import { logStageSubmission } from "@/server/audit/stageAudit";
+import { createUserNotification } from "@/server/notifications/createNotification";
 
 type SubmittedAnswer = {
   questionId: string;
@@ -296,6 +297,31 @@ export async function POST(request: Request) {
     } catch (e) {
       console.error("syncPipelineStep (MCQ):", e);
     }
+
+    // Notify applicant with the latest next step after MCQ submission.
+    const { data: updatedApp } = await supabase
+      .from("applications")
+      .select("pipeline_step, current_stage")
+      .eq("id", applicationId)
+      .maybeSingle();
+    const mappedNext =
+      String(updatedApp?.pipeline_step || updatedApp?.current_stage || "MCQ").toUpperCase() === "SCREENING"
+        ? "MCQ"
+        : String(updatedApp?.pipeline_step || updatedApp?.current_stage || "MCQ").toUpperCase();
+    const routeByStep: Record<string, string> = {
+      MCQ: `/dashboard/applicant/applications/${applicationId}/mcq`,
+      CODING: `/dashboard/applicant/applications/${applicationId}`,
+      INTERVIEW: `/dashboard/applicant/applications/${applicationId}`,
+      COMPLETE: `/dashboard/applicant/applications/${applicationId}`,
+    };
+    await createUserNotification(supabase, {
+      userId: String(application.user_id),
+      applicationId,
+      title: "MCQ submitted successfully",
+      message: `You scored ${Number(score.toFixed(2))}%. Next step: ${mappedNext}.`,
+      route: routeByStep[mappedNext] || `/dashboard/applicant/applications/${applicationId}`,
+      type: mappedNext === "CODING" ? "coding" : mappedNext === "INTERVIEW" ? "interview" : "mcq",
+    });
 
     const reviewAnswers = await loadReviewAnswers(supabase, attemptId);
     await logStageSubmission({

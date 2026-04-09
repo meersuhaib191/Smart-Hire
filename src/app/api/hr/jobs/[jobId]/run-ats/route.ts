@@ -4,6 +4,7 @@ import { requireAuthUser, requireHr } from "@/server/auth/session";
 import { createEmbedding, vectorToSql } from "@/server/ats/embedding";
 import { syncPipelineStep } from "@/server/pipeline/syncPipeline";
 import { extractResumeText } from "@/server/ats/parseResume";
+import { createUserNotification } from "@/server/notifications/createNotification";
 
 const ATS_PASS_SCORE = Number(process.env.ATS_PASS_SCORE || 60);
 
@@ -18,7 +19,7 @@ export async function POST(_request: Request, context: { params: Promise<{ jobId
 
     const { data: job, error: jobError } = await admin
       .from("jobs")
-      .select("id, description, job_skills(skill_name)")
+      .select("id, title, description, job_skills(skill_name)")
       .eq("id", jobId)
       .single();
 
@@ -34,7 +35,7 @@ export async function POST(_request: Request, context: { params: Promise<{ jobId
 
     const { data: applications, error: appsError } = await admin
       .from("applications")
-      .select("id, resume_snapshot_url")
+      .select("id, user_id, resume_snapshot_url")
       .eq("job_id", jobId);
     if (appsError) {
       return NextResponse.json({ error: appsError.message }, { status: 500 });
@@ -129,6 +130,17 @@ export async function POST(_request: Request, context: { params: Promise<{ jobId
         }
 
         await syncPipelineStep(app.id);
+        const passedAts = atsScore >= ATS_PASS_SCORE;
+        await createUserNotification(admin, {
+          userId: String(app.user_id),
+          applicationId: app.id,
+          title: passedAts ? "ATS screening cleared" : "ATS screening result",
+          message: passedAts
+            ? `Great news! You cleared ATS for ${String(job.title || "this role")} with score ${atsScore.toFixed(1)}. You can proceed to MCQ when unlocked by HR.`
+            : `Your ATS screening score for ${String(job.title || "this role")} is ${atsScore.toFixed(1)}. HR will review and update next steps.`,
+          route: `/dashboard/applicant/applications/${app.id}`,
+          type: "info",
+        });
         screened += 1;
       } catch {
         failed += 1;

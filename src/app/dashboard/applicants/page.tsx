@@ -169,16 +169,25 @@ export default function ApplicantsDashboard() {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error || "Failed to advance top candidates.");
-      setActionMessage(
-        `Moved ${json.advanced} candidate(s) from ${json.fromStage} to ${json.nextStage}.`
-      );
-      setActivity((prev) => [
-        {
-          at: new Date().toISOString(),
-          message: `Moved top ${payload.topN} candidates from ${stageLabels[fromStage]} to ${stageLabels[json.nextStage as PipelineStageId] || json.nextStage}.`,
-        },
-        ...prev,
-      ].slice(0, 30));
+      const nextStage = String(json.nextStage || "").toUpperCase() as PipelineStageId;
+      const prettyNext = stageLabels[nextStage] || nextStage || "next stage";
+      if ((json.advanced || 0) > 0 && nextStage) {
+        setActionMessage(`Moved ${json.advanced} candidate(s) from ${stageLabels[fromStage]} to ${prettyNext}.`);
+        setActivity((prev) => [
+          {
+            at: new Date().toISOString(),
+            message: `Moved top ${payload.topN} candidates from ${stageLabels[fromStage]} to ${prettyNext}.`,
+          },
+          ...prev,
+        ].slice(0, 30));
+      } else {
+        const fallbackMessage = json.message || `No candidates moved from ${stageLabels[fromStage]}.`;
+        setActionMessage(fallbackMessage);
+        setActivity((prev) => [
+          { at: new Date().toISOString(), message: fallbackMessage },
+          ...prev,
+        ].slice(0, 30));
+      }
       await loadCandidates(jobId);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to advance top candidates.";
