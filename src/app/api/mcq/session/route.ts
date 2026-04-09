@@ -29,6 +29,12 @@ const stageRank = (stage: string) => {
   return 0;
 };
 
+const isMissingRoundControlsTable = (message?: string) =>
+  (message || "").includes("relation \"application_round_controls\" does not exist") ||
+  (message || "").includes("relation \"public.application_round_controls\" does not exist") ||
+  (message || "").includes("Could not find the table 'application_round_controls'") ||
+  (message || "").includes("Could not find the table 'public.application_round_controls'");
+
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
@@ -82,10 +88,32 @@ export async function GET(request: Request) {
       .eq("application_id", applicationId)
       .maybeSingle();
 
+    let deadlineAt: string | null = null;
+    let directives: string | null = null;
+    const controls = await admin
+      .from("application_round_controls")
+      .select("deadline_at, directives")
+      .eq("application_id", applicationId)
+      .eq("stage_type", "MCQ")
+      .maybeSingle();
+    if (!isMissingRoundControlsTable(controls.error?.message)) {
+      if (controls.error) {
+        return NextResponse.json({ error: controls.error.message }, { status: 500 });
+      }
+      deadlineAt = controls.data?.deadline_at || null;
+      directives = controls.data?.directives || null;
+    }
+
     // Only candidates already advanced to MCQ (or further) can open the assessment.
     if (!attempt?.id && stageRank(normalizedStep) < stageRank("MCQ")) {
       return NextResponse.json(
         { error: "MCQ round is not unlocked yet for this application." },
+        { status: 403 }
+      );
+    }
+    if (!attempt?.id && deadlineAt && new Date(deadlineAt).getTime() < Date.now()) {
+      return NextResponse.json(
+        { error: "MCQ round deadline has passed. Please contact HR for extension." },
         { status: 403 }
       );
     }
@@ -223,6 +251,8 @@ export async function GET(request: Request) {
       remainingSeconds,
       hasExpired,
       sessionToken: attempt?.id ? "" : sessionToken,
+      deadlineAt,
+      directives,
     });
 
     if (attempt?.id) {

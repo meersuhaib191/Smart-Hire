@@ -256,7 +256,7 @@ export default function ApplicantsDashboard() {
                   key={job.id}
                   type="button"
                   size="sm"
-                  variant={job.id === jobId ? "default" : "outline"}
+                  variant={job.id === jobId ? "primary" : "outline"}
                   className="h-8 rounded-full px-3 text-xs"
                   onClick={() => setJobId(job.id)}
                 >

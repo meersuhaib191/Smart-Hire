@@ -12,6 +12,11 @@ type SubmittedAnswer = {
 };
 
 const MCQ_PASS_SCORE = Number(process.env.MCQ_PASS_SCORE || 60);
+const isMissingRoundControlsTable = (message?: string) =>
+  (message || "").includes("relation \"application_round_controls\" does not exist") ||
+  (message || "").includes("relation \"public.application_round_controls\" does not exist") ||
+  (message || "").includes("Could not find the table 'application_round_controls'") ||
+  (message || "").includes("Could not find the table 'public.application_round_controls'");
 
 const loadReviewAnswers = async (supabase: ReturnType<typeof createSupabaseAdmin>, attemptId: string) => {
   const { data } = await supabase
@@ -114,6 +119,25 @@ export async function POST(request: Request) {
         detail: { reason: "forbidden_owner_mismatch" },
       });
       return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+    }
+
+    const controls = await supabase
+      .from("application_round_controls")
+      .select("deadline_at")
+      .eq("application_id", applicationId)
+      .eq("stage_type", "MCQ")
+      .maybeSingle();
+    if (!isMissingRoundControlsTable(controls.error?.message)) {
+      if (controls.error) {
+        return NextResponse.json({ error: controls.error.message }, { status: 500 });
+      }
+      const deadlineAt = controls.data?.deadline_at;
+      if (deadlineAt && new Date(deadlineAt).getTime() < Date.now()) {
+        return NextResponse.json(
+          { error: "MCQ round deadline has passed. Contact HR for extension." },
+          { status: 403 }
+        );
+      }
     }
 
     const questionIds = answers.map((a) => a.questionId);

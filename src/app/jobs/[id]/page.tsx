@@ -93,15 +93,15 @@ export default function JobDetailPage() {
             <CardDescription>Ready to move forward? Submit your profile and resume.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <Button asChild className="w-full rounded-xl">
-              <Link href={`/jobs/${job.id}/apply`}>
+            <Link href={`/jobs/${job.id}/apply`} className="block">
+              <Button className="w-full rounded-xl">
                 <Briefcase className="mr-2 h-4 w-4" />
                 Apply Now
-              </Link>
-            </Button>
-            <Button asChild variant="outline" className="w-full rounded-xl">
-              <Link href="/dashboard/applicant/applications">Track Applications</Link>
-            </Button>
+              </Button>
+            </Link>
+            <Link href="/dashboard/applicant/applications" className="block">
+              <Button variant="outline" className="w-full rounded-xl">Track Applications</Button>
+            </Link>
           </CardContent>
         </Card>
       </div>

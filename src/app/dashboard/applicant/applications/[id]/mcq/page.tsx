@@ -50,6 +50,8 @@ export default function McqPage() {
   const [timeLeft, setTimeLeft] = useState(15 * 60);
   const [hasExpired, setHasExpired] = useState(false);
   const [blockedByOtherTab, setBlockedByOtherTab] = useState(false);
+  const [deadlineAt, setDeadlineAt] = useState<string | null>(null);
+  const [directives, setDirectives] = useState<string>("");
 
   const examActive = !loading && !hasSubmitted && !hasExpired && questions.length > 0;
 
@@ -73,6 +75,8 @@ export default function McqPage() {
         setExamSeconds(serverExamSeconds);
         setTimeLeft(serverRemaining);
         setHasExpired(Boolean(json.hasExpired));
+        setDeadlineAt(json.deadlineAt || null);
+        setDirectives(String(json.directives || ""));
         if (json.hasExpired) {
           setMessage("MCQ exam time window has expired. Please contact HR or support.");
         }
@@ -347,6 +351,16 @@ export default function McqPage() {
               <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
                 Answer all questions and submit once. Timer: {Math.floor(examSeconds / 60)} min. Your pipeline stage updates automatically.
               </p>
+              {deadlineAt || directives ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                  {deadlineAt ? (
+                    <p className="text-xs font-medium text-amber-800">
+                      HR deadline: {new Date(deadlineAt).toLocaleString()}
+                    </p>
+                  ) : null}
+                  {directives ? <p className="mt-1 text-xs text-amber-700">{directives}</p> : null}
+                </div>
+              ) : null}
               <div className="space-y-4">
                 {questions.map((q, i) => (
                   <div key={q.id} className="rounded-xl border border-slate-200 p-4 shadow-sm space-y-3">
