@@ -8,6 +8,26 @@ import {
   verifyMcqSessionToken,
 } from "@/server/mcq/sessionToken";
 import { cookies } from "next/headers";
+import { generateMcqsFromContext } from "@/server/mcq/generator";
+
+const mapCurrentStageToPipeline = (current?: string | null) => {
+  const value = String(current || "").toUpperCase();
+  if (value === "SCREENING") return "MCQ";
+  if (value === "CODING") return "CODING";
+  if (value === "INTERVIEW") return "INTERVIEW";
+  if (value === "OFFER" || value === "COMPLETE") return "COMPLETE";
+  return "ATS";
+};
+
+const stageRank = (stage: string) => {
+  const s = String(stage || "").toUpperCase();
+  if (s === "ATS") return 0;
+  if (s === "MCQ") return 1;
+  if (s === "CODING") return 2;
+  if (s === "INTERVIEW") return 3;
+  if (s === "COMPLETE") return 4;
+  return 0;
+};
 
 export async function GET(request: Request) {
   try {
@@ -42,7 +62,7 @@ export async function GET(request: Request) {
       if (application) {
         application = {
           ...application,
-          pipeline_step: (application as { current_stage?: string | null }).current_stage || "APPLIED",
+          pipeline_step: mapCurrentStageToPipeline((application as { current_stage?: string | null }).current_stage),
         };
       }
     }
@@ -54,13 +74,23 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Forbidden." }, { status: 403 });
     }
 
+    const normalizedStep = String(application.pipeline_step || "ATS").toUpperCase();
+
     const { data: attempt } = await admin
       .from("mcq_attempts")
       .select("id, score, total_questions, correct_answers, submitted_at")
       .eq("application_id", applicationId)
       .maybeSingle();
 
-    const { data: questions, error: questionsError } = await admin
+    // Only candidates already advanced to MCQ (or further) can open the assessment.
+    if (!attempt?.id && stageRank(normalizedStep) < stageRank("MCQ")) {
+      return NextResponse.json(
+        { error: "MCQ round is not unlocked yet for this application." },
+        { status: 403 }
+      );
+    }
+
+    let { data: questions, error: questionsError } = await admin
       .from("mcq_questions")
       .select("id, question_text, options, skill_tag, difficulty")
       .eq("job_id", application.job_id)
@@ -69,6 +99,51 @@ export async function GET(request: Request) {
 
     if (questionsError) {
       return NextResponse.json({ error: "Failed to load MCQ questions.", detail: questionsError.message }, { status: 500 });
+    }
+
+    if (!questions?.length) {
+      const { data: job } = await admin
+        .from("jobs")
+        .select("title, description, job_skills(skill_name)")
+        .eq("id", application.job_id)
+        .maybeSingle();
+      if (job) {
+        const skills =
+          ((job.job_skills as Array<{ skill_name: string }> | null) || [])
+            .map((s) => s.skill_name)
+            .filter(Boolean);
+        const generated = await generateMcqsFromContext({
+          skills,
+          count: 12,
+          jobTitle: String(job.title || ""),
+          jobDescription: String(job.description || ""),
+          difficultyHint: "challenging",
+        });
+        if (generated.length) {
+          await admin.from("mcq_questions").insert(
+            generated.map((q) => ({
+              job_id: application.job_id,
+              question_text: q.questionText,
+              options: q.options,
+              correct_option: q.correctOption,
+              skill_tag: q.skillTag || null,
+              difficulty: q.difficulty || "medium",
+            }))
+          );
+        }
+      }
+
+      const reload = await admin
+        .from("mcq_questions")
+        .select("id, question_text, options, skill_tag, difficulty")
+        .eq("job_id", application.job_id)
+        .order("created_at", { ascending: true })
+        .limit(30);
+      questions = reload.data;
+      questionsError = reload.error;
+      if (questionsError) {
+        return NextResponse.json({ error: "Failed to load MCQ questions.", detail: questionsError.message }, { status: 500 });
+      }
     }
 
     let reviewAnswers: Array<{

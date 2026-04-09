@@ -4,8 +4,15 @@ import { motion } from 'motion/react';
 import { Button } from '@/components/ui/Button';
 import { BrainCircuit, CheckCircle, Code, Users, BarChart } from 'lucide-react';
 import Link from 'next/link';
+import { useStore } from '@/store/useStore';
 
 export const LandingPage = () => {
+  const { user, isAuthenticated, hasCheckedSession } = useStore();
+  const isSignedIn = hasCheckedSession && isAuthenticated && Boolean(user?.id);
+  const dashboardHref =
+    user?.role === 'hr' || user?.role === 'admin' ? '/hr/dashboard' : '/applicant/dashboard';
+  const getStartedHref = isSignedIn ? dashboardHref : '/login';
+
   return (
     <div className="bg-white">
       {/* Hero Section */}
@@ -28,7 +35,7 @@ export const LandingPage = () => {
               Rank candidates by skill, not keywords.
             </p>
             <div className="flex justify-center gap-4">
-              <Link href="/register">
+              <Link href={getStartedHref}>
                 <Button size="lg" className="px-8 text-lg h-14">Get Started Free</Button>
               </Link>
               <Link href="/jobs">
@@ -164,7 +171,7 @@ export const LandingPage = () => {
           <p className="text-indigo-100 mb-10 max-w-2xl mx-auto text-lg">
             Join 10,000+ companies using Smart Hire to find the best talent faster.
           </p>
-          <Link href="/register">
+          <Link href={getStartedHref}>
             <Button size="lg" className="bg-white text-indigo-600 hover:bg-indigo-50 border-transparent text-lg px-8 h-14">
               Start Free Trial
             </Button>

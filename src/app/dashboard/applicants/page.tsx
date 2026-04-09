@@ -17,9 +17,14 @@ import { CandidateCard } from "@/components/pipeline/CandidateCard";
 import { PipelineStageColumn } from "@/components/pipeline/PipelineStageColumn";
 import { AdvanceStageModal } from "@/components/pipeline/AdvanceStageModal";
 import { CandidateRow, PipelineStageId, scoreFor, stageOrder, stageLabels } from "@/components/pipeline/types";
-import { BrainCircuit, Share2, Sparkles, Users } from "lucide-react";
+import { BrainCircuit, Briefcase, Share2, Sparkles, Users } from "lucide-react";
 
-type JobRow = { id: string; title: string };
+type JobRow = {
+  id: string;
+  title: string;
+  status?: string;
+  applicantCount: number;
+};
 
 export default function ApplicantsDashboard() {
   const [jobs, setJobs] = useState<JobRow[]>([]);
@@ -38,8 +43,19 @@ export default function ApplicantsDashboard() {
         const res = await fetch("/api/hr/jobs", { cache: "no-store" });
         const json = await res.json();
         if (res.ok && json.jobs?.length) {
-          setJobs(json.jobs);
-          setJobId(json.jobs[0].id);
+          const normalizedJobs: JobRow[] = (json.jobs as Array<{
+            id: string;
+            title: string;
+            status?: string;
+            applications?: Array<{ id: string }>;
+          }>).map((job) => ({
+            id: job.id,
+            title: job.title,
+            status: job.status,
+            applicantCount: Array.isArray(job.applications) ? job.applications.length : 0,
+          }));
+          setJobs(normalizedJobs);
+          setJobId(normalizedJobs[0].id);
         } else if (!res.ok) {
           setErrorMessage(json.error || "Failed to load HR jobs.");
         }
@@ -76,6 +92,7 @@ export default function ApplicantsDashboard() {
   }, [jobId]);
 
   const selectedTitle = jobs.find((j) => j.id === jobId)?.title || "Pipeline";
+  const selectedJob = jobs.find((j) => j.id === jobId) || null;
   const totalApplicants = candidates.length;
 
   const stageBuckets = useMemo(() => {
@@ -131,7 +148,10 @@ export default function ApplicantsDashboard() {
     }
   };
 
-  const advanceTopN = async (fromStage: "ATS" | "MCQ" | "CODING", topN: number) => {
+  const advanceTopN = async (
+    fromStage: "ATS" | "MCQ" | "CODING",
+    payload: { topN: number; deadlineAt?: string; directives?: string }
+  ) => {
     if (!jobId) return;
     setActionLoading("advance");
     setActionMessage("");
@@ -141,8 +161,10 @@ export default function ApplicantsDashboard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           fromStage,
-          topN: Number(topN) || 1,
+          topN: Number(payload.topN) || 1,
           rejectRest: false,
+          deadlineAt: payload.deadlineAt,
+          directives: payload.directives,
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -153,7 +175,7 @@ export default function ApplicantsDashboard() {
       setActivity((prev) => [
         {
           at: new Date().toISOString(),
-          message: `Moved top ${topN} candidates from ${stageLabels[fromStage]} to ${stageLabels[json.nextStage as PipelineStageId] || json.nextStage}.`,
+          message: `Moved top ${payload.topN} candidates from ${stageLabels[fromStage]} to ${stageLabels[json.nextStage as PipelineStageId] || json.nextStage}.`,
         },
         ...prev,
       ].slice(0, 30));
@@ -198,13 +220,14 @@ export default function ApplicantsDashboard() {
             Visual funnel and stage orchestration for <span className="font-medium text-slate-900">{selectedTitle}</span>
           </p>
         </div>
-        <div className="w-full max-w-sm">
+        <div className="w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Select Job</p>
           <Select
             value={jobId}
             onValueChange={setJobId}
             disabled={loadingJobs || !jobs.length}
           >
-            <SelectTrigger>
+            <SelectTrigger className="h-11 rounded-xl border-slate-200">
               <SelectValue placeholder={loadingJobs ? "Loading jobs…" : "Choose job"} />
             </SelectTrigger>
             <SelectContent>
@@ -215,6 +238,33 @@ export default function ApplicantsDashboard() {
               ))}
             </SelectContent>
           </Select>
+          {selectedJob ? (
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <Badge variant="secondary" className="rounded-lg">
+                <Briefcase size={12} className="mr-1" />
+                {selectedJob.status || "PUBLISHED"}
+              </Badge>
+              <Badge variant="outline" className="rounded-lg">
+                {selectedJob.applicantCount} applicants
+              </Badge>
+            </div>
+          ) : null}
+          {jobs.length > 1 ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {jobs.slice(0, 5).map((job) => (
+                <Button
+                  key={job.id}
+                  type="button"
+                  size="sm"
+                  variant={job.id === jobId ? "default" : "outline"}
+                  className="h-8 rounded-full px-3 text-xs"
+                  onClick={() => setJobId(job.id)}
+                >
+                  {job.title}
+                </Button>
+              ))}
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -270,21 +320,21 @@ export default function ApplicantsDashboard() {
             nextStage="MCQ"
             max={stageBuckets.ATS.length}
             disabled={!jobId || actionLoading !== null || stageBuckets.ATS.length === 0}
-            onConfirm={async (n) => advanceTopN("ATS", n)}
+            onConfirm={async (data) => advanceTopN("ATS", data)}
           />
           <AdvanceStageModal
             fromStage="MCQ"
             nextStage="CODING"
             max={stageBuckets.MCQ.length}
             disabled={!jobId || actionLoading !== null || stageBuckets.MCQ.length === 0}
-            onConfirm={async (n) => advanceTopN("MCQ", n)}
+            onConfirm={async (data) => advanceTopN("MCQ", data)}
           />
           <AdvanceStageModal
             fromStage="CODING"
             nextStage="INTERVIEW"
             max={stageBuckets.CODING.length}
             disabled={!jobId || actionLoading !== null || stageBuckets.CODING.length === 0}
-            onConfirm={async (n) => advanceTopN("CODING", n)}
+            onConfirm={async (data) => advanceTopN("CODING", data)}
           />
         </CardContent>
       </Card>

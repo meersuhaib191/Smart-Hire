@@ -14,6 +14,10 @@ type AppRow = {
   current_stage: string;
   applied_at: string;
   jobs: { title: string } | null;
+  roundDeadlineAt?: string | null;
+  roundDirectives?: string | null;
+  canProceedRound?: boolean;
+  proceedRoute?: string | null;
 };
 
 export default function Page() {
@@ -71,9 +75,24 @@ export default function Page() {
                   <p className="text-xs text-slate-500">
                     Stage: {r.pipeline_step} · Status: {r.current_stage}
                   </p>
+                  {r.roundDeadlineAt ? (
+                    <p className="mt-1 text-xs text-amber-700">
+                      Deadline: {new Date(r.roundDeadlineAt).toLocaleString()}
+                    </p>
+                  ) : null}
+                  {r.roundDirectives ? (
+                    <p className="mt-1 line-clamp-2 text-xs text-slate-500">HR directives: {r.roundDirectives}</p>
+                  ) : null}
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant="secondary">{r.pipeline_step}</Badge>
+                  {r.canProceedRound && r.proceedRoute ? (
+                    <Link href={r.proceedRoute}>
+                      <Button size="sm" className="rounded-lg">
+                        Start Round
+                      </Button>
+                    </Link>
+                  ) : null}
                   <Link href={`/dashboard/applicant/applications/${r.id}`}>
                     <Button size="sm" variant="outline" className="rounded-lg">
                       Open

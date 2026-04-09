@@ -223,8 +223,14 @@ export const useStore = create<AppState>((set) => ({
 
   logout: async () => {
     set({ isLoading: true });
-    await supabase.auth.signOut();
-    set({ user: null, isAuthenticated: false, hasCheckedSession: true, isLoading: false });
+    try {
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.error("logout error:", error);
+    } finally {
+      // Keep UI consistent even if sign-out request fails.
+      set({ user: null, isAuthenticated: false, hasCheckedSession: true, isLoading: false });
+    }
   },
 
   checkSession: async () => {

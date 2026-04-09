@@ -2,6 +2,26 @@ import { NextResponse } from "next/server";
 import { createSupabaseAdmin } from "@/server/supabase/admin";
 import { requireAuthUser } from "@/server/auth/session";
 
+const mapCurrentStageToPipeline = (current?: string | null) => {
+  const value = String(current || "").toUpperCase();
+  if (value === "ATS") return "ATS";
+  if (value === "MCQ") return "MCQ";
+  if (value === "COMPLETE") return "COMPLETE";
+  if (value === "REJECTED") return "REJECTED";
+  if (value === "SCREENING") return "MCQ";
+  if (value === "CODING") return "CODING";
+  if (value === "INTERVIEW") return "INTERVIEW";
+  if (value === "OFFER" || value === "COMPLETE" || value === "HIRED") return "COMPLETE";
+  if (value === "REJECTED") return "REJECTED";
+  if (value === "APPLIED") return "ATS";
+  return "ATS";
+};
+const isMissingRoundControlsTable = (message?: string) =>
+  (message || "").includes("relation \"application_round_controls\" does not exist") ||
+  (message || "").includes("relation \"public.application_round_controls\" does not exist") ||
+  (message || "").includes("Could not find the table 'application_round_controls'") ||
+  (message || "").includes("Could not find the table 'public.application_round_controls'");
+
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params;
@@ -29,7 +49,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       if (application) {
         application = {
           ...application,
-          pipeline_step: application.current_stage || "APPLIED",
+          pipeline_step: mapCurrentStageToPipeline(application.current_stage),
         };
       }
     }
@@ -59,11 +79,40 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       .limit(1)
       .maybeSingle();
 
+    let { data: controls, error: controlsError } = await admin
+      .from("application_round_controls")
+      .select("id, stage_type, deadline_at, directives, created_at, updated_at")
+      .eq("application_id", id)
+      .order("updated_at", { ascending: false });
+    if (isMissingRoundControlsTable(controlsError?.message)) {
+      controls = [];
+      controlsError = null;
+    }
+    if (controlsError) {
+      return NextResponse.json({ error: controlsError.message }, { status: 500 });
+    }
+
+    const normalizedStep = mapCurrentStageToPipeline(
+      (application as { pipeline_step?: string | null; current_stage?: string | null }).pipeline_step ||
+        application.current_stage
+    );
+    const activeDirective = (controls || []).find(
+      (c) => String(c.stage_type || "").toUpperCase() === String(normalizedStep || "").toUpperCase()
+    );
+    const deadlineExpired =
+      Boolean(activeDirective?.deadline_at) && new Date(String(activeDirective?.deadline_at)).getTime() < Date.now();
+
     return NextResponse.json({
-      application,
+      application: {
+        ...application,
+        pipeline_step: normalizedStep,
+      },
       stages: stages || [],
       ranking: ranking || null,
       codingChallenge: challenge || null,
+      roundControls: controls || [],
+      activeDirective: activeDirective || null,
+      canProceedCurrentRound: !deadlineExpired,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to load application detail.";

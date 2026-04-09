@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdmin } from "@/server/supabase/admin";
 import { requireAuthUser, requireHr } from "@/server/auth/session";
+import { createUserNotification } from "@/server/notifications/createNotification";
+import { generateMcqsFromContext } from "@/server/mcq/generator";
 
 type Stage = "ATS" | "MCQ" | "CODING" | "INTERVIEW";
 
@@ -26,6 +28,55 @@ const missingPipelineStepColumn = (message?: string) =>
   (message || "").includes("Could not find the 'pipeline_step' column") ||
   (message || "").includes("column applications.pipeline_step does not exist") ||
   (message || "").includes('column "pipeline_step" does not exist');
+const isMissingRoundControlsTable = (message?: string) =>
+  (message || "").includes("relation \"application_round_controls\" does not exist") ||
+  (message || "").includes("relation \"public.application_round_controls\" does not exist") ||
+  (message || "").includes("Could not find the table 'application_round_controls'") ||
+  (message || "").includes("Could not find the table 'public.application_round_controls'");
+
+async function ensureMcqsForJob(
+  admin: ReturnType<typeof createSupabaseAdmin>,
+  jobId: string
+) {
+  const minQuestions = 12;
+  const { count } = await admin
+    .from("mcq_questions")
+    .select("*", { count: "exact", head: true })
+    .eq("job_id", jobId);
+  if ((count || 0) >= minQuestions) return;
+
+  const toGenerate = Math.max(8, minQuestions - Number(count || 0));
+  const { data: job } = await admin
+    .from("jobs")
+    .select("id, title, description, job_skills(skill_name)")
+    .eq("id", jobId)
+    .maybeSingle();
+  if (!job) return;
+
+  const skills =
+    ((job.job_skills as Array<{ skill_name: string }> | null) || [])
+      .map((s) => s.skill_name)
+      .filter(Boolean);
+  const generated = await generateMcqsFromContext({
+    skills,
+    count: toGenerate,
+    jobTitle: String(job.title || ""),
+    jobDescription: String(job.description || ""),
+    difficultyHint: "challenging",
+  });
+
+  if (!generated.length) return;
+  await admin.from("mcq_questions").insert(
+    generated.map((q) => ({
+      job_id: jobId,
+      question_text: q.questionText,
+      options: q.options,
+      correct_option: q.correctOption,
+      skill_tag: q.skillTag || null,
+      difficulty: q.difficulty || "medium",
+    }))
+  );
+}
 
 export async function POST(request: Request, context: { params: Promise<{ jobId: string }> }) {
   try {
@@ -33,7 +84,13 @@ export async function POST(request: Request, context: { params: Promise<{ jobId:
     requireHr(user);
     const { jobId } = await context.params;
 
-    const body = (await request.json()) as { fromStage?: Stage; topN?: number; rejectRest?: boolean };
+    const body = (await request.json()) as {
+      fromStage?: Stage;
+      topN?: number;
+      rejectRest?: boolean;
+      deadlineAt?: string;
+      directives?: string;
+    };
     const fromStage = (body.fromStage || "ATS").toUpperCase() as Stage;
     if (!stageOrder.includes(fromStage)) {
       return NextResponse.json({ error: "Invalid fromStage. Use ATS, MCQ, CODING, INTERVIEW." }, { status: 400 });
@@ -47,6 +104,11 @@ export async function POST(request: Request, context: { params: Promise<{ jobId:
     const nextStage = stageOrder[fromIndex + 1];
     const topN = Math.max(1, Math.min(500, Number(body.topN || 10)));
     const rejectRest = Boolean(body.rejectRest);
+    const directives = String(body.directives || "").trim();
+    const deadlineAt =
+      body.deadlineAt && !Number.isNaN(new Date(body.deadlineAt).getTime())
+        ? new Date(body.deadlineAt).toISOString()
+        : null;
 
     const admin = createSupabaseAdmin();
     let { data: apps, error: appsError } = await admin
@@ -139,6 +201,54 @@ export async function POST(request: Request, context: { params: Promise<{ jobId:
       } else if (updateError) {
         return NextResponse.json({ error: updateError.message }, { status: 500 });
       }
+
+      if (nextStage === "MCQ") {
+        await ensureMcqsForJob(admin, jobId);
+      }
+
+      if ((nextStage === "MCQ" || nextStage === "CODING" || nextStage === "INTERVIEW") && selectedIds.length) {
+        const payload = selectedIds.map((id) => ({
+          application_id: id,
+          stage_type: nextStage,
+          deadline_at: deadlineAt,
+          directives: directives || null,
+          created_by_user_id: user.id,
+          updated_at: new Date().toISOString(),
+        }));
+        const { error: controlsError } = await admin
+          .from("application_round_controls")
+          .upsert(payload, { onConflict: "application_id,stage_type" });
+        if (controlsError && !isMissingRoundControlsTable(controlsError.message)) {
+          return NextResponse.json({ error: controlsError.message }, { status: 500 });
+        }
+      }
+
+      const selectedById = new Map(selected.map((row) => [row.id, row]));
+      const { data: jobMeta } = await admin.from("jobs").select("title").eq("id", jobId).maybeSingle();
+      const jobTitle = String(jobMeta?.title || "your application");
+
+      await Promise.all(
+        selectedIds.map(async (id) => {
+          const app = selectedById.get(id);
+          if (!app?.user_id) return;
+          const routeByStage: Record<string, string> = {
+            MCQ: `/dashboard/applicant/applications/${id}/mcq`,
+            CODING: `/dashboard/applicant/applications/${id}`,
+            INTERVIEW: `/dashboard/applicant/applications/${id}`,
+          };
+          await createUserNotification(admin, {
+            userId: app.user_id,
+            applicationId: id,
+            title: `Advanced to ${nextStage}`,
+            message:
+              nextStage === "MCQ"
+                ? `You were shortlisted for the MCQ round for ${jobTitle}.${deadlineAt ? ` Deadline: ${new Date(deadlineAt).toLocaleString()}.` : ""}${directives ? ` Instructions: ${directives}` : ""}`
+                : `Your application for ${jobTitle} moved to ${nextStage}.`,
+            route: routeByStage[nextStage] || `/dashboard/applicant/applications/${id}`,
+            type: nextStage === "MCQ" ? "mcq" : "info",
+          });
+        })
+      );
     }
 
     if (rejectedIds.length) {

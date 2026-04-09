@@ -1,5 +1,5 @@
 "use client";
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -19,7 +19,7 @@ const schema = z.object({
 type FormData = z.infer<typeof schema>;
 
 export const LoginPage = () => {
-  const { login, isLoading } = useStore();
+  const { login, isLoading, user, isAuthenticated, hasCheckedSession } = useStore();
   const router = useRouter();
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -50,6 +50,30 @@ export const LoginPage = () => {
       toast.error(message);
     }
   };
+
+  useEffect(() => {
+    if (!hasCheckedSession || !isAuthenticated || !user) return;
+
+    const hrNeedsProfile =
+      (user.role === 'hr' || user.role === 'admin') && (!user.isProfileComplete || !user.company?.trim());
+
+    if (hrNeedsProfile) {
+      router.replace('/hr/complete-profile');
+      return;
+    }
+
+    if (user.role === 'hr' || user.role === 'admin') {
+      router.replace('/hr/dashboard');
+      return;
+    }
+
+    if (user.role === 'applicant' && !user.isProfileComplete) {
+      router.replace('/applicant/complete-profile');
+      return;
+    }
+
+    router.replace('/applicant/dashboard');
+  }, [hasCheckedSession, isAuthenticated, user, router]);
 
   return (
     <div className="min-h-screen grid bg-slate-50 lg:grid-cols-2">

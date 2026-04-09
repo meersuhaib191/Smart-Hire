@@ -7,8 +7,10 @@ import { useStore } from '@/store/useStore';
 
 export const PublicLayout = ({ children }: { children: React.ReactNode }) => {
   const { user, isAuthenticated, hasCheckedSession, logout } = useStore();
+  const isSignedIn = hasCheckedSession && isAuthenticated && Boolean(user?.id);
   const dashboardHref =
     user?.role === 'hr' || user?.role === 'admin' ? '/hr/dashboard' : '/applicant/dashboard';
+  const getStartedHref = isSignedIn ? dashboardHref : '/login';
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -28,7 +30,7 @@ export const PublicLayout = ({ children }: { children: React.ReactNode }) => {
           </nav>
 
           <div className="flex items-center gap-3">
-            {hasCheckedSession && isAuthenticated ? (
+            {isSignedIn ? (
               <>
                 <Link href={dashboardHref}>
                   <Button variant="ghost" size="sm">Dashboard</Button>
@@ -45,10 +47,7 @@ export const PublicLayout = ({ children }: { children: React.ReactNode }) => {
               </>
             ) : (
               <>
-                <Link href="/login">
-                  <Button variant="ghost" size="sm">Log in</Button>
-                </Link>
-                <Link href="/register">
+                <Link href={getStartedHref}>
                   <Button size="sm">Get Started</Button>
                 </Link>
               </>

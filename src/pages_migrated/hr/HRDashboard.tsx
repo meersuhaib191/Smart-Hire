@@ -106,7 +106,7 @@ export const HRDashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{summary?.activeJobs ?? "—"}</div>
-            <p className="text-xs text-slate-500">From your Supabase project</p>
+            <p className="text-xs text-slate-500">Posted by your account</p>
           </CardContent>
         </Card>
         <Card>
@@ -116,7 +116,7 @@ export const HRDashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{summary?.totalApplicants ?? "—"}</div>
-            <p className="text-xs text-slate-500">All applications</p>
+            <p className="text-xs text-slate-500">Applications on your jobs</p>
           </CardContent>
         </Card>
         <Card>

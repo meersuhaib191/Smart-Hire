@@ -23,12 +23,17 @@ type ApplicationRow = {
   current_stage?: string | null;
   applied_at?: string | null;
   jobs?: { title?: string | null } | null;
+  roundDeadlineAt?: string | null;
+  roundDirectives?: string | null;
+  canProceedRound?: boolean;
+  proceedRoute?: string | null;
 };
 
 const stageLabel = (value?: string | null) => {
   const v = (value || '').toUpperCase();
   if (!v) return 'Applied';
   if (v === 'ATS') return 'Screening';
+  if (v === 'SCREENING') return 'MCQ';
   if (v === 'MCQ') return 'MCQ';
   if (v === 'CODING') return 'Coding';
   if (v === 'INTERVIEW') return 'Interview';
@@ -209,13 +214,26 @@ export const ApplicantDashboard = () => {
                   </div>
                   <div className="space-y-1 flex-1">
                     <p className="text-sm font-medium leading-none">{item.jobs?.title || 'Untitled role'}</p>
-                    <p className="text-xs text-slate-500">{item.job_id}</p>
+                    {item.roundDeadlineAt ? (
+                      <p className="text-xs text-amber-700">Deadline: {new Date(item.roundDeadlineAt).toLocaleString()}</p>
+                    ) : (
+                      <p className="text-xs text-slate-500">{item.applied_at ? formatDistanceToNow(new Date(item.applied_at), { addSuffix: true }) : '—'}</p>
+                    )}
+                    {item.roundDirectives ? (
+                      <p className="mt-1 line-clamp-1 text-xs text-slate-500">HR: {item.roundDirectives}</p>
+                    ) : null}
                   </div>
                   <div className="text-right">
                     <Badge variant={isInterview ? 'primary' : status === 'Screening' ? 'warning' : 'secondary'}>
                       {status}
                     </Badge>
-                    <p className="text-xs text-slate-400 mt-1">{item.applied_at ? formatDistanceToNow(new Date(item.applied_at), { addSuffix: true }) : '—'}</p>
+                    <div className="mt-1">
+                      {item.canProceedRound && item.proceedRoute ? (
+                        <Link href={item.proceedRoute}>
+                          <Button size="sm" className="h-7 rounded-md px-2 text-[11px]">Proceed</Button>
+                        </Link>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
               )})}

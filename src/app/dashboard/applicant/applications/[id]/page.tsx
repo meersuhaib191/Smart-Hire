@@ -18,6 +18,19 @@ type Detail = {
   stages: Array<{ stage_type: string; score: number; passed: boolean }>;
   ranking: { final_score: number; rank_position: number } | null;
   codingChallenge: { id: string; title: string } | null;
+  roundControls?: Array<{
+    id: string;
+    stage_type: string;
+    deadline_at?: string | null;
+    directives?: string | null;
+    updated_at?: string | null;
+  }>;
+  activeDirective?: {
+    stage_type: string;
+    deadline_at?: string | null;
+    directives?: string | null;
+  } | null;
+  canProceedCurrentRound?: boolean;
 };
 
 export default function Page() {
@@ -80,6 +93,9 @@ export default function Page() {
   const flow = ["ATS", "MCQ", "CODING", "INTERVIEW", "COMPLETE"];
   const currentIndex = Math.max(0, flow.indexOf(step));
   const progress = ((currentIndex + 1) / flow.length) * 100;
+  const activeDeadline = data.activeDirective?.deadline_at || null;
+  const activeDirectives = data.activeDirective?.directives || "";
+  const canProceed = data.canProceedCurrentRound !== false;
 
   return (
     <div className="space-y-6">
@@ -127,6 +143,29 @@ export default function Page() {
         </CardContent>
       </Card>
 
+      {(activeDeadline || activeDirectives) ? (
+        <Card className="rounded-2xl border-slate-200/80 shadow-sm">
+          <CardHeader>
+            <CardTitle>HR Deadline & Directives</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {activeDeadline ? (
+              <p className={`text-sm ${canProceed ? "text-amber-700" : "text-red-600"}`}>
+                Deadline: {new Date(activeDeadline).toLocaleString()}
+              </p>
+            ) : null}
+            {activeDirectives ? (
+              <p className="text-sm text-slate-600">{activeDirectives}</p>
+            ) : null}
+            {!canProceed ? (
+              <p className="text-xs text-red-600">
+                This round deadline has passed. Contact HR if you need a reschedule.
+              </p>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
+
       {step === "CODING" && data.codingChallenge ? (
         <Card className="rounded-2xl border-slate-200/80 shadow-sm">
           <CardHeader>
@@ -134,7 +173,7 @@ export default function Page() {
           </CardHeader>
           <CardContent>
             <Link href={`/coding/${data.codingChallenge.id}?applicationId=${data.application.id}`}>
-              <Button>Start Coding Stage</Button>
+              <Button disabled={!canProceed}>Start Coding Stage</Button>
             </Link>
           </CardContent>
         </Card>
@@ -147,7 +186,7 @@ export default function Page() {
           </CardHeader>
           <CardContent>
             <Link href={`/dashboard/applicant/applications/${data.application.id}/mcq`}>
-              <Button>Start MCQ Stage</Button>
+              <Button disabled={!canProceed}>Start MCQ Stage</Button>
             </Link>
           </CardContent>
         </Card>

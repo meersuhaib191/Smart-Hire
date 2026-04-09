@@ -7,16 +7,16 @@ const fallbackQuestions = (skills: string[], count: number): McqQuestionInput[] 
   for (let i = 0; i < count; i += 1) {
     const skill = sourceSkills[i % sourceSkills.length];
     items.push({
-      questionText: `Which statement best reflects good practice in ${skill}?`,
+      questionText: `You are reviewing a production issue related to ${skill}. Which action is most likely to produce a reliable fix?`,
       options: [
-        `Ignore edge cases in ${skill} to speed delivery`,
-        `Apply core ${skill} principles and validate with tests`,
-        `Only focus on UI and skip ${skill} fundamentals`,
-        `Use random approach without measuring outcomes`,
+        `Patch only the symptom in UI and postpone root-cause analysis`,
+        `Apply ${skill} best practices, add targeted tests, and validate with measurable checks`,
+        `Revert unrelated modules to reduce immediate alerts`,
+        `Skip tests and rely only on manual checks in production`,
       ],
       correctOption: 1,
       skillTag: skill,
-      difficulty: "medium",
+      difficulty: "hard",
     });
   }
 
@@ -44,14 +44,36 @@ const parseQuestions = (raw: string, expectedCount: number): McqQuestionInput[] 
 };
 
 export async function generateMcqs(skills: string[], count: number): Promise<McqQuestionInput[]> {
+  return generateMcqsFromContext({ skills, count });
+}
+
+export async function generateMcqsFromContext(input: {
+  skills: string[];
+  count: number;
+  jobTitle?: string;
+  jobDescription?: string;
+  difficultyHint?: "balanced" | "challenging";
+}): Promise<McqQuestionInput[]> {
+  const skills = input.skills || [];
+  const count = input.count;
   const openAiKey = process.env.OPENAI_API_KEY;
   if (!openAiKey) {
     return fallbackQuestions(skills, count);
   }
 
-  const prompt = `Generate ${count} multiple-choice questions for a hiring assessment.\nSkills: ${skills.join(
-    ", "
-  )}\nReturn ONLY JSON array: [{questionText, options(4), correctOption(0-3), skillTag, difficulty}].`;
+  const difficultyInstruction =
+    input.difficultyHint === "challenging"
+      ? "Questions must be moderately difficult to difficult, scenario-based, and avoid obvious answers."
+      : "Use a balanced difficulty mix of medium and hard.";
+  const jobContext = [input.jobTitle ? `Job Title: ${input.jobTitle}` : "", input.jobDescription ? `Job Description: ${input.jobDescription}` : ""]
+    .filter(Boolean)
+    .join("\n");
+
+  const prompt = `Generate ${count} multiple-choice questions for a hiring assessment.
+${jobContext ? `${jobContext}\n` : ""}Skills: ${skills.join(", ")}
+${difficultyInstruction}
+At least 70% questions should require applied reasoning rather than definitions.
+Return ONLY JSON array: [{questionText, options(4), correctOption(0-3), skillTag, difficulty}].`;
 
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",

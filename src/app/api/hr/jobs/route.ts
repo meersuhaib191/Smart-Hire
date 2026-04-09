@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdmin } from "@/server/supabase/admin";
 import { requireAuthUser, requireHr } from "@/server/auth/session";
-import { generateMcqs } from "@/server/mcq/generator";
+import { generateMcqsFromContext } from "@/server/mcq/generator";
 import { buildDefaultChallenge } from "@/server/coding/seedChallenge";
 
 type CreateJobBody = {
@@ -19,6 +19,10 @@ type CreateJobBody = {
 };
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const isMissingCreatedByColumn = (message?: string) =>
+  (message || "").includes("Could not find the 'created_by_user_id' column") ||
+  (message || "").includes("column jobs.created_by_user_id does not exist") ||
+  (message || "").includes('column "created_by_user_id" does not exist');
 
 async function resolveCompanyId(
   admin: ReturnType<typeof createSupabaseAdmin>,
@@ -94,16 +98,30 @@ export async function GET() {
     requireHr(user);
 
     const admin = createSupabaseAdmin();
-    const companyId = await findCompanyIdByHint(admin, user);
     let query = admin
       .from("jobs")
       .select("id, title, company_id, status, created_at, applications(id)")
       .order("created_at", { ascending: false })
-      .limit(100);
-    if (companyId) {
-      query = query.eq("company_id", companyId);
+      .limit(100)
+      .eq("created_by_user_id", user.id);
+    let { data, error } = await query;
+
+    if (isMissingCreatedByColumn(error?.message)) {
+      const companyId = await findCompanyIdByHint(admin, user);
+      let fallbackQuery = admin
+        .from("jobs")
+        .select("id, title, company_id, status, created_at, applications(id)")
+        .order("created_at", { ascending: false })
+        .limit(100);
+      if (companyId) {
+        fallbackQuery = fallbackQuery.eq("company_id", companyId);
+      } else {
+        fallbackQuery = fallbackQuery.eq("id", "__no_match__");
+      }
+      const fallback = await fallbackQuery;
+      data = fallback.data;
+      error = fallback.error;
     }
-    const { data, error } = await query;
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -157,10 +175,105 @@ export async function POST(request: Request) {
         description: body.description,
         experience_required: body.experience_required || 0,
         company_id: companyId,
+        created_by_user_id: user.id,
         status: "PUBLISHED",
       })
       .select("id, title")
       .single();
+
+    if (isMissingCreatedByColumn(jobError?.message)) {
+      const fallback = await admin
+        .from("jobs")
+        .insert({
+          title: body.title,
+          description: body.description,
+          experience_required: body.experience_required || 0,
+          company_id: companyId,
+          status: "PUBLISHED",
+        })
+        .select("id, title")
+        .single();
+      if (fallback.error || !fallback.data) {
+        return NextResponse.json(
+          { error: "Failed to create job.", detail: fallback.error?.message },
+          { status: 500 }
+        );
+      }
+
+      const createdJob = fallback.data;
+      if (skills.length) {
+        await admin.from("job_skills").insert(
+          skills.map((skill) => ({
+            job_id: createdJob.id,
+            skill_name: skill,
+          }))
+        );
+      }
+
+      await admin.from("job_weights").upsert(
+        {
+          job_id: createdJob.id,
+          ats_weight: weights.ats_weight,
+          mcq_weight: weights.mcq_weight,
+          coding_weight: weights.coding_weight,
+          interview_weight: weights.interview_weight,
+        },
+        { onConflict: "job_id" }
+      );
+
+      const mcqs = await generateMcqsFromContext({
+        skills,
+        count: 12,
+        jobTitle: createdJob.title,
+        jobDescription: body.description,
+        difficultyHint: "challenging",
+      });
+      await admin.from("mcq_questions").insert(
+        mcqs.map((q) => ({
+          job_id: createdJob.id,
+          question_text: q.questionText,
+          options: q.options,
+          correct_option: q.correctOption,
+          skill_tag: q.skillTag || null,
+          difficulty: q.difficulty || "medium",
+        }))
+      );
+
+      const challenge = buildDefaultChallenge(createdJob.title, skills);
+      const { data: createdChallenge } = await admin
+        .from("coding_challenges")
+        .insert({
+          job_id: createdJob.id,
+          title: challenge.title,
+          description: challenge.description,
+          starter_code: challenge.starterCode,
+          language: challenge.language,
+          difficulty: "medium",
+        })
+        .select("id")
+        .single();
+
+      if (createdChallenge?.id) {
+        await admin.from("coding_test_cases").insert(
+          challenge.testCases.map((tc) => ({
+            challenge_id: createdChallenge.id,
+            input: tc.input,
+            expected_output: tc.expected_output,
+            is_hidden: tc.is_hidden,
+          }))
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        jobId: createdJob.id,
+        seeded: {
+          mcqQuestions: mcqs.length,
+          codingChallenge: Boolean(createdChallenge?.id),
+        },
+      });
+    }
+
     if (jobError || !job) {
       return NextResponse.json({ error: "Failed to create job.", detail: jobError?.message }, { status: 500 });
     }
@@ -186,7 +299,13 @@ export async function POST(request: Request) {
     );
 
     // Auto-seed MCQ pool
-    const mcqs = await generateMcqs(skills, 10);
+    const mcqs = await generateMcqsFromContext({
+      skills,
+      count: 12,
+      jobTitle: job.title,
+      jobDescription: body.description,
+      difficultyHint: "challenging",
+    });
     await admin.from("mcq_questions").insert(
       mcqs.map((q) => ({
         job_id: job.id,
