@@ -1,0 +1,15 @@
+John Doe
+Senior Software Engineer
+
+Summary
+Backend-focused engineer with 6+ years experience building APIs and services.
+Hands-on with Python, FastAPI, PostgreSQL, Docker, AWS, CI/CD, and testing.
+
+Experience
+- Built microservices in Python and FastAPI for high-throughput workloads.
+- Designed PostgreSQL schemas and optimized SQL queries.
+- Containerized applications using Docker and deployed on AWS.
+- Wrote automated tests with pytest and integrated CI/CD pipelines.
+
+Skills
+Python, FastAPI, PostgreSQL, SQL, Docker, AWS, Git, CI/CD, pytest, system design

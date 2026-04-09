@@ -1,0 +1,15 @@
+Maya Singh
+Senior Backend Engineer
+
+Summary
+8+ years of backend engineering experience in distributed systems.
+
+Core Skills
+Python, FastAPI, PostgreSQL, SQL, Docker, AWS, Git, CI/CD, pytest, microservices, system design, Redis
+
+Experience
+- Built FastAPI services for fintech workloads and reduced API latency by 35%.
+- Optimized PostgreSQL query plans and schema migrations at scale.
+- Containerized services with Docker and deployed to AWS ECS.
+- Implemented pytest suites and CI/CD checks across multiple teams.
+- Designed microservice architecture and service contracts.

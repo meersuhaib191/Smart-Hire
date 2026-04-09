@@ -1,0 +1,14 @@
+Rahul Verma
+Software Engineer
+
+Summary
+4 years of software development with backend and fullstack exposure.
+
+Core Skills
+Python, Flask, PostgreSQL, SQL, Docker, Git, testing, REST APIs
+
+Experience
+- Built internal APIs in Python and Flask.
+- Worked with PostgreSQL and wrote moderate complexity SQL queries.
+- Used Docker in local development and basic CI pipelines.
+- Collaborated on cloud deployments with platform team.

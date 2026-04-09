@@ -1,0 +1,4 @@
+We are hiring a backend engineer to design and maintain scalable APIs.
+Required skills include Python, FastAPI, PostgreSQL, Docker, AWS, Git, and CI/CD.
+You should understand microservices and system design principles.
+Experience with automated testing (pytest) is preferred.
