@@ -7,7 +7,10 @@ from .parser import extract_resume_text, load_job_description
 from .semantic import SemanticScorer
 from .scoring import (
     compile_insights,
+    detect_domain,
     compute_experience_score,
+    infer_role_from_job_description,
+    role_domain,
     compute_role_alignment_boost,
     compute_semantic_score,
 )
@@ -16,9 +19,9 @@ from .skills import SkillScoreResult, compute_skill_score
 
 @dataclass
 class ScreeningWeights:
-    semantic_weight: float = 0.55
+    semantic_weight: float = 0.50
     skill_weight: float = 0.30
-    experience_weight: float = 0.15
+    experience_weight: float = 0.20
 
 
 @dataclass
@@ -34,6 +37,7 @@ class ScreeningResult:
     candidate_experience_years: float
     required_experience_years: float | None
     role_boost: float
+    domain_match: bool
     insights: list[str]
     resume_chars: int
     job_description_chars: int
@@ -68,18 +72,35 @@ class ResumeScreeningService:
         resume_text = extract_resume_text(resume_path)
         jd_text = load_job_description(job_description_path, job_description_text)
 
-        semantic = compute_semantic_score(self.semantic, resume_text, jd_text)
         skill: SkillScoreResult = compute_skill_score(jd_text, resume_text)
-        experience = compute_experience_score(resume_text, jd_text)
-        role_boost = compute_role_alignment_boost(resume_text, jd_text) if use_role_boost else 0.0
+        role = infer_role_from_job_description(jd_text)
+        resume_domain = detect_domain(resume_text)
+        target_domain = role_domain(role)
+        domain_match = target_domain == "unknown" or resume_domain == "unknown" or target_domain == resume_domain
+
+        # Controlled semantic influence when domain intent is mismatched.
+        semantic = compute_semantic_score(self.semantic, resume_text, jd_text, domain_match=domain_match)
+        experience = compute_experience_score(resume_text, jd_text, role=role)
+        role_boost = compute_role_alignment_boost(resume_text, role) if use_role_boost else 0.0
 
         overall = (
             semantic.score * config.semantic_weight
             + skill.score * config.skill_weight
             + experience.score * config.experience_weight
         )
+
+        # Hard constraint from ATS policy.
+        final_score_cap = 95.0
+        if len(skill.missing_critical_skills) >= 1:
+            final_score_cap = min(final_score_cap, 65.0)
+        if not domain_match:
+            overall *= 0.75
+        if len(skill.matched_skills) == 0:
+            overall *= 0.5
         overall = min(100.0, overall + role_boost)
-        insights = compile_insights(semantic.score, skill, experience)
+        overall = min(overall, final_score_cap)
+        overall = min(overall, 95.0)
+        insights = compile_insights(semantic.score, skill, experience, domain_match=domain_match, role=role)
 
         return ScreeningResult(
             overall_score=round(overall, 2),
@@ -93,6 +114,7 @@ class ResumeScreeningService:
             candidate_experience_years=experience.candidate_years,
             required_experience_years=experience.required_years,
             role_boost=role_boost,
+            domain_match=domain_match,
             insights=insights,
             resume_chars=len(resume_text),
             job_description_chars=len(jd_text),

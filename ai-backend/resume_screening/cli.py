@@ -15,9 +15,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--jd-text", help="Inline job description text.")
     parser.add_argument("--jd-dir", help="Directory containing multiple JD files (.txt/.md).")
     parser.add_argument("--pass-threshold", type=float, default=65.0, help="Threshold for PASS in multi-JD mode.")
-    parser.add_argument("--semantic-weight", type=float, default=0.55)
+    parser.add_argument("--semantic-weight", type=float, default=0.50)
     parser.add_argument("--skill-weight", type=float, default=0.30)
-    parser.add_argument("--experience-weight", type=float, default=0.15)
+    parser.add_argument("--experience-weight", type=float, default=0.20)
     parser.add_argument("--disable-role-boost", action="store_true")
     return parser
 

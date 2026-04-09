@@ -1,6 +1,6 @@
 # Resume Screening Module (Standalone)
 
-This module runs ATS-style resume parsing and semantic matching as an isolated component before app integration.
+This module runs a production-style ATS ranking engine as an isolated component before app integration.
 
 ## Features
 
@@ -17,10 +17,15 @@ This module runs ATS-style resume parsing and semantic matching as an isolated c
   - Missing skills
   - Coverage ratio
 - Weighted ATS score with explainable breakdown:
-  - `0.55 * semantic_score`
+  - `0.45 * semantic_score`
   - `0.30 * skill_score`
   - `0.15 * experience_score`
-- Optional role alignment boost (`0-10`) with final score cap at `100`
+  - `0.10 * domain_score`
+- Hard controls for realistic ranking:
+  - No-skill penalty
+  - Critical-skill cap
+  - Domain mismatch penalty
+  - Final score capped at `95`
 - Standalone CLI and FastAPI endpoint for testing
 
 ## Folder Structure
@@ -33,6 +38,7 @@ This module runs ATS-style resume parsing and semantic matching as an isolated c
 - `cli.py` - terminal runner
 - `benchmark.py` - compare many resumes against one JD
 - `scoring.py` - semantic/skill/experience/boost scoring logic
+- `engine/` - production ranking architecture (semantic, skills, experience, domain, orchestration)
 
 ## Quick Start
 
@@ -89,24 +95,22 @@ Open browser playground:
 - [http://127.0.0.1:8010/playground](http://127.0.0.1:8010/playground)
 - Upload your resume once and paste multiple job descriptions.
 
-Call endpoint:
+Single job endpoint (`/score`):
 
 ```bash
-curl -X POST "http://127.0.0.1:8010/screen" \
+curl -X POST "http://127.0.0.1:8010/score" \
   -F "resume=@K:/path/to/resume.pdf" \
-  -F "job_description=Need Python, FastAPI, PostgreSQL, Docker" \
-  -F "semantic_weight=0.55" \
-  -F "skill_weight=0.30" \
-  -F "experience_weight=0.15" \
-  -F "use_role_boost=true"
+  -F "job_title=Data Analyst" \
+  -F "job_description=Need SQL, Tableau, dashboards, and reporting skills."
 ```
 
-Multi-JD API:
+Multi-job ranking endpoint (`/analyze`):
 
 ```bash
-curl -X POST "http://127.0.0.1:8010/screen/multi-jd" \
+curl -X POST "http://127.0.0.1:8010/analyze" \
   -F "resume=@K:/path/to/resume.pdf" \
-  -F "job_descriptions_blob=JD one line\nJD two line"
+  -F "job_titles_blob=Data Analyst\nData Scientist" \
+  -F "job_descriptions_blob=JD one\n---\nJD two"
 ```
 
 ## Benchmark Test (Multiple Resumes)
@@ -131,27 +135,23 @@ Expected outcome (roughly):
 
 ```json
 {
-  "overall_score": 74.2,
-  "semantic_score": 81.1,
-  "skill_score": 58.3,
-  "experience_score": 70.0,
-  "role_boost": 4.0,
-  "matched_skills": ["fastapi", "postgresql", "python"],
-  "missing_skills": ["docker"],
+  "overall_score": 72.5,
+  "semantic_score": 68.0,
+  "skill_score": 75.0,
+  "experience_score": 55.0,
+  "domain_score": 80.0,
+  "domain_match": true,
+  "matched_skills": ["python", "sql"],
+  "missing_skills": ["tableau"],
   "insights": [
-    "Strong semantic match with job role.",
-    "Missing some non-critical skills: docker.",
-    "Experience meets or exceeds the role requirement."
+    "Strong match for Data Scientist role.",
+    "Good project-based experience boosts data-role fit.",
+    "Missing skills reduce match quality: tableau."
   ],
-  "matched_skill_count": 3,
-  "missing_skill_count": 1,
-  "resume_chars": 4821,
-  "job_description_chars": 642,
+  "confidence_score": 78.2,
+  "percentile_rank": 90.0,
   "engine": "sentence_transformer",
-  "weights": {
-    "semantic_weight": 0.7,
-    "skill_weight": 0.3
-  }
+  "rank": 1
 }
 ```
 

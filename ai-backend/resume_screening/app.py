@@ -10,9 +10,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
-from .service import ResumeScreeningService, ScreeningWeights
+from .engine.ranking_engine import AtsRankingEngine, JobInput
+from .parser import extract_resume_text
 
-app = FastAPI(title="Resume Screening Module", version="0.1.0")
+app = FastAPI(title="ATS Ranking Engine API", version="1.0.0")
 
 allowed_origins = [
     origin.strip()
@@ -28,68 +29,125 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-service = ResumeScreeningService()
+engine = AtsRankingEngine()
 
 
-class ScreeningResponse(BaseModel):
+class ScoreResponse(BaseModel):
     overall_score: float
     semantic_score: float
     skill_score: float
-    skill_coverage_score: float
+    experience_score: float
+    domain_score: float
+    role_specific_score: float
+    domain_match: bool
     matched_skills: list[str]
     missing_skills: list[str]
-    matched_skill_count: int
-    missing_skill_count: int
-    experience_score: float
-    candidate_experience_years: float
-    required_experience_years: float | None
-    role_boost: float
+    strengths: list[str]
+    weaknesses: list[str]
+    score_breakdown: dict
     insights: list[str]
-    resume_chars: int
-    job_description_chars: int
+    confidence_score: float
+    percentile_rank: float
     engine: str
-    weights: dict
-    required_skills_with_weights: dict
-
-
-class MultiJdScreeningItem(ScreeningResponse):
+    job_title: str
     job_description: str
     rank: int
 
 
-class MultiJdScreeningResponse(BaseModel):
-    results: list[MultiJdScreeningItem]
+class AnalyzeResponse(BaseModel):
+    results: list[ScoreResponse]
 
 
-async def _store_upload_temp_file(resume: UploadFile) -> str:
-    suffix = Path(resume.filename or "resume.pdf").suffix or ".pdf"
+async def _store_upload_temp_file(upload: UploadFile) -> str:
+    suffix = Path(upload.filename or "resume.pdf").suffix or ".pdf"
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         temp_path = tmp.name
-    payload = await resume.read()
+    payload = await upload.read()
     Path(temp_path).write_bytes(payload)
     return temp_path
 
 
-def _parse_job_descriptions_blob(raw: str) -> list[str]:
-    # Supports either JSON array or plain text split by delimiter/newline.
-    cleaned = (raw or "").strip()
+def _parse_jobs_blob(job_descriptions_blob: str, job_titles_blob: str | None = None) -> list[JobInput]:
+    cleaned = (job_descriptions_blob or "").strip()
     if not cleaned:
         return []
+
+    titles: list[str] = []
+    if job_titles_blob and job_titles_blob.strip():
+        titles = [line.strip() for line in job_titles_blob.splitlines() if line.strip()]
+
+    # Supported formats:
+    # 1) JSON list of strings
+    # 2) JSON list of {"title","description"}
+    # 3) text blocks split by \n---\n
+    # 4) one line = one JD
     try:
         parsed = json.loads(cleaned)
         if isinstance(parsed, list):
-            return [str(x).strip() for x in parsed if str(x).strip()]
+            jobs: list[JobInput] = []
+            for i, item in enumerate(parsed):
+                if isinstance(item, dict):
+                    title = str(item.get("title") or f"Job #{i+1}")
+                    desc = str(item.get("description") or "").strip()
+                    if desc:
+                        jobs.append(JobInput(title=title, description=desc))
+                else:
+                    desc = str(item).strip()
+                    if desc:
+                        title = titles[i] if i < len(titles) else f"Job #{i+1}"
+                        jobs.append(JobInput(title=title, description=desc))
+            return jobs
     except Exception:
         pass
 
-    if "\n---\n" in cleaned:
-        return [chunk.strip() for chunk in cleaned.split("\n---\n") if chunk.strip()]
-    return [line.strip() for line in cleaned.splitlines() if line.strip()]
+    blocks = [x.strip() for x in cleaned.split("\n---\n") if x.strip()] if "\n---\n" in cleaned else [
+        x.strip() for x in cleaned.splitlines() if x.strip()
+    ]
+    jobs: list[JobInput] = []
+    for i, desc in enumerate(blocks):
+        title = titles[i] if i < len(titles) else f"Job #{i+1}"
+        jobs.append(JobInput(title=title, description=desc))
+    return jobs
 
 
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok"}
+
+
+@app.post("/score", response_model=ScoreResponse)
+async def score(
+    resume: UploadFile = File(...),
+    job_description: str = Form(...),
+    job_title: str = Form("Target Role"),
+):
+    temp_path = await _store_upload_temp_file(resume)
+    try:
+        resume_text = extract_resume_text(temp_path)
+        result = engine.score_one(resume_text, JobInput(title=job_title, description=job_description))
+        return result.to_dict()
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+
+
+@app.post("/analyze", response_model=AnalyzeResponse)
+async def analyze(
+    resume: UploadFile = File(...),
+    job_descriptions_blob: str = Form(...),
+    job_titles_blob: str = Form(""),
+):
+    jobs = _parse_jobs_blob(job_descriptions_blob, job_titles_blob or None)
+    if not jobs:
+        return {"results": []}
+    temp_path = await _store_upload_temp_file(resume)
+    try:
+        resume_text = extract_resume_text(temp_path)
+        ranked = engine.rank_many(resume_text, jobs)
+        return {"results": [x.to_dict() for x in ranked]}
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
 
 
 @app.get("/playground", response_class=HTMLResponse)
@@ -99,156 +157,68 @@ def playground() -> str:
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>Resume Screening Playground</title>
+    <title>ATS Ranking Playground</title>
     <style>
-      body { font-family: Arial, sans-serif; max-width: 900px; margin: 24px auto; padding: 0 12px; }
-      textarea, input[type="file"], button { width: 100%; margin-top: 8px; margin-bottom: 16px; }
-      textarea { min-height: 140px; }
-      .hint { color: #555; font-size: 13px; margin-top: -10px; margin-bottom: 12px; }
-      .box { border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
-      .mono { font-family: Consolas, monospace; white-space: pre-wrap; }
+      body { font-family: Arial, sans-serif; max-width: 980px; margin: 24px auto; padding: 0 12px; }
+      textarea, input[type="file"], button, input[type="text"] { width: 100%; margin-top: 8px; margin-bottom: 14px; }
+      textarea { min-height: 130px; }
+      .hint { color: #555; font-size: 13px; margin-top: -8px; margin-bottom: 12px; }
+      .box { border: 1px solid #ddd; border-radius: 8px; padding: 16px; }
     </style>
   </head>
   <body>
-    <h2>Resume Screening Playground</h2>
-    <p>Upload your resume once, paste multiple job descriptions, and get ranked ATS matches.</p>
+    <h2>ATS Ranking Playground</h2>
+    <p>Upload one resume and rank it against multiple jobs.</p>
     <div class="box">
       <form action="/playground/run" method="post" enctype="multipart/form-data">
-        <label><strong>Resume File</strong></label>
+        <label><strong>Resume</strong></label>
         <input type="file" name="resume" required />
 
+        <label><strong>Job Titles (optional, one per line)</strong></label>
+        <textarea name="job_titles_blob" placeholder="Data Analyst&#10;Data Scientist"></textarea>
+
         <label><strong>Job Descriptions</strong></label>
-        <textarea name="job_descriptions_blob" placeholder="Paste one JD per line OR separate blocks with ---"></textarea>
-        <div class="hint">Tip: Use one line per JD, or separate longer JDs using a line with three dashes: ---</div>
+        <textarea name="job_descriptions_blob" placeholder="Paste one JD per line OR separate long JDs with ---"></textarea>
+        <div class="hint">Tip: separate longer JDs using a line with exactly three dashes: ---</div>
 
-        <label><strong>Semantic Weight</strong></label>
-        <input type="text" name="semantic_weight" value="0.55" />
-
-        <label><strong>Skill Weight</strong></label>
-        <input type="text" name="skill_weight" value="0.30" />
-
-        <label><strong>Experience Weight</strong></label>
-        <input type="text" name="experience_weight" value="0.15" />
-
-        <label><strong>Role Alignment Boost</strong></label>
-        <input type="text" name="use_role_boost" value="true" />
-
-        <button type="submit">Run Matching</button>
+        <button type="submit">Analyze Ranking</button>
       </form>
     </div>
-    <p class="hint">API alternative: POST /screen/multi-jd with <code>resume</code> + <code>job_descriptions_blob</code>.</p>
   </body>
 </html>
 """
 
 
-@app.post("/screen", response_model=ScreeningResponse)
-async def screen_resume(
-    resume: UploadFile = File(...),
-    job_description: str = Form(...),
-    semantic_weight: float = Form(0.55),
-    skill_weight: float = Form(0.30),
-    experience_weight: float = Form(0.15),
-    use_role_boost: bool = Form(True),
-):
-    temp_path = await _store_upload_temp_file(resume)
-    try:
-        result = service.screen(
-            resume_path=temp_path,
-            job_description_text=job_description,
-            weights=ScreeningWeights(
-                semantic_weight=semantic_weight,
-                skill_weight=skill_weight,
-                experience_weight=experience_weight,
-            ),
-            use_role_boost=use_role_boost,
-        )
-        return result.to_dict()
-    finally:
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
-
-
-@app.post("/screen/multi-jd", response_model=MultiJdScreeningResponse)
-async def screen_resume_against_multiple_jds(
-    resume: UploadFile = File(...),
-    job_descriptions_blob: str = Form(...),
-    semantic_weight: float = Form(0.55),
-    skill_weight: float = Form(0.30),
-    experience_weight: float = Form(0.15),
-    use_role_boost: bool = Form(True),
-):
-    job_descriptions = _parse_job_descriptions_blob(job_descriptions_blob)
-    if not job_descriptions:
-        return {"results": []}
-
-    temp_path = await _store_upload_temp_file(resume)
-    try:
-        items: list[dict] = []
-        weights = ScreeningWeights(
-            semantic_weight=semantic_weight,
-            skill_weight=skill_weight,
-            experience_weight=experience_weight,
-        )
-        for jd in job_descriptions:
-            result = service.screen(
-                resume_path=temp_path,
-                job_description_text=jd,
-                weights=weights,
-                use_role_boost=use_role_boost,
-            ).to_dict()
-            result["job_description"] = jd[:280]
-            items.append(result)
-
-        items.sort(key=lambda x: x["overall_score"], reverse=True)
-        for idx, item in enumerate(items, start=1):
-            item["rank"] = idx
-        return {"results": items}
-    finally:
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
-
-
 @app.post("/playground/run", response_class=HTMLResponse)
-async def run_playground(
+async def playground_run(
     resume: UploadFile = File(...),
     job_descriptions_blob: str = Form(...),
-    semantic_weight: float = Form(0.55),
-    skill_weight: float = Form(0.30),
-    experience_weight: float = Form(0.15),
-    use_role_boost: bool = Form(True),
+    job_titles_blob: str = Form(""),
 ):
-    payload = await screen_resume_against_multiple_jds(
-        resume=resume,
-        job_descriptions_blob=job_descriptions_blob,
-        semantic_weight=semantic_weight,
-        skill_weight=skill_weight,
-        experience_weight=experience_weight,
-        use_role_boost=use_role_boost,
-    )
+    payload = await analyze(resume=resume, job_descriptions_blob=job_descriptions_blob, job_titles_blob=job_titles_blob)
     rows = []
     for item in payload["results"]:
         rows.append(
             "<tr>"
             f"<td>{item['rank']}</td>"
+            f"<td>{item['job_title']}</td>"
             f"<td>{item['overall_score']:.2f}</td>"
             f"<td>{item['semantic_score']:.2f}</td>"
             f"<td>{item['skill_score']:.2f}</td>"
             f"<td>{item['experience_score']:.2f}</td>"
-            f"<td>{item['matched_skill_count']}</td>"
-            f"<td>{item['missing_skill_count']}</td>"
-            f"<td>{item['job_description']}</td>"
+            f"<td>{item['domain_score']:.2f}</td>"
+            f"<td>{item['confidence_score']:.2f}</td>"
             "</tr>"
         )
-    rows_html = "".join(rows) if rows else "<tr><td colspan='8'>No job descriptions provided.</td></tr>"
+    table_rows = "".join(rows) if rows else "<tr><td colspan='8'>No jobs provided.</td></tr>"
     return f"""
 <!doctype html>
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>Screening Results</title>
+    <title>ATS Results</title>
     <style>
-      body {{ font-family: Arial, sans-serif; max-width: 1100px; margin: 24px auto; padding: 0 12px; }}
+      body {{ font-family: Arial, sans-serif; max-width: 1200px; margin: 24px auto; padding: 0 12px; }}
       table {{ border-collapse: collapse; width: 100%; }}
       th, td {{ border: 1px solid #ddd; padding: 8px; vertical-align: top; }}
       th {{ background: #f7f7f7; }}
@@ -256,14 +226,14 @@ async def run_playground(
     </style>
   </head>
   <body>
-    <h2>Resume vs Multiple Jobs</h2>
+    <h2>ATS Ranked Results</h2>
     <table>
       <thead>
         <tr>
-          <th>Rank</th><th>Overall</th><th>Semantic</th><th>Skill</th><th>Experience</th><th>Matched</th><th>Missing</th><th>Job Description</th>
+          <th>Rank</th><th>Job Title</th><th>Overall</th><th>Semantic</th><th>Skill</th><th>Experience</th><th>Domain</th><th>Confidence</th>
         </tr>
       </thead>
-      <tbody>{rows_html}</tbody>
+      <tbody>{table_rows}</tbody>
     </table>
     <a href="/playground">Run another test</a>
   </body>

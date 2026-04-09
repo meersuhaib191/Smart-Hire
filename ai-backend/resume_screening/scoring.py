@@ -11,8 +11,67 @@ def _clamp_0_100(value: float) -> float:
     return max(0.0, min(100.0, value))
 
 
-def compute_semantic_score(scorer: SemanticScorer, resume_text: str, job_description: str) -> SemanticResult:
-    return scorer.score(resume_text, job_description)
+DATA_ROLES = ("data analyst", "data scientist", "data engineer", "ml engineer", "machine learning engineer")
+BUSINESS_ROLES = ("business analyst",)
+DEV_ROLES = ("frontend", "backend", "full stack", "fullstack", "software engineer")
+
+DATA_KEYWORDS = {
+    "pandas", "numpy", "analysis", "analytics", "sql", "tableau", "power bi",
+    "dashboard", "kpi", "reporting", "machine learning", "model",
+}
+BUSINESS_KEYWORDS = {"stakeholder", "requirements", "business process", "documentation", "roadmap"}
+DEV_KEYWORDS = {"react", "javascript", "typescript", "api", "fastapi", "backend", "frontend", "node"}
+
+
+def infer_role_from_job_description(job_description: str) -> str:
+    jd = job_description.lower()
+    for role in DATA_ROLES:
+        if role in jd:
+            return role
+    for role in BUSINESS_ROLES:
+        if role in jd:
+            return role
+    for role in DEV_ROLES:
+        if role in jd:
+            return role
+    return "unknown"
+
+
+def detect_domain(text: str) -> str:
+    content = text.lower()
+    data_hits = sum(1 for k in DATA_KEYWORDS if k in content)
+    business_hits = sum(1 for k in BUSINESS_KEYWORDS if k in content)
+    dev_hits = sum(1 for k in DEV_KEYWORDS if k in content)
+    if max(data_hits, business_hits, dev_hits) == 0:
+        return "unknown"
+    if data_hits >= business_hits and data_hits >= dev_hits:
+        return "data"
+    if business_hits >= dev_hits:
+        return "business"
+    return "dev"
+
+
+def role_domain(role: str) -> str:
+    role_l = role.lower()
+    if any(tag in role_l for tag in DATA_ROLES):
+        return "data"
+    if any(tag in role_l for tag in BUSINESS_ROLES):
+        return "business"
+    if any(tag in role_l for tag in DEV_ROLES):
+        return "dev"
+    return "unknown"
+
+
+def compute_semantic_score(
+    scorer: SemanticScorer,
+    resume_text: str,
+    job_description: str,
+    domain_match: bool = True,
+) -> SemanticResult:
+    base = scorer.score(resume_text, job_description)
+    if not domain_match:
+        base.score = round(_clamp_0_100(base.score * 0.7), 2)
+    return base
 
 
 @dataclass
@@ -20,6 +79,9 @@ class ExperienceScoreResult:
     score: float
     candidate_years: float
     required_years: float | None
+    fresher: bool
+    has_projects: bool
+    no_real_experience: bool
 
 
 def _extract_required_experience_years(job_description: str) -> float | None:
@@ -59,69 +121,90 @@ def _extract_candidate_experience_years(resume_text: str) -> float:
     project_mentions = len(re.findall(r"\bprojects?\b", text))
     work_mentions = len(re.findall(r"\b(engineer|developer|analyst|scientist|consultant|lead)\b", text))
 
-    base = max(direct_years + ranged_years + [0.0])
-    bonus = min(2.0, 0.4 * work_mentions)
+    if direct_years:
+        # Prefer explicit "X years of experience" when available.
+        base = max(direct_years)
+        bonus = 0.0
+    else:
+        base = max(ranged_years + [0.0])
+        bonus = min(2.0, 0.4 * work_mentions)
     penalty = min(2.5, 0.5 * internship_mentions + 0.3 * project_mentions)
     effective = max(0.0, base + bonus - penalty)
     return round(effective, 2)
 
 
-def compute_experience_score(resume_text: str, job_description: str) -> ExperienceScoreResult:
+def _has_project_signal(resume_text: str) -> bool:
+    text = resume_text.lower()
+    return any(token in text for token in ("project", "capstone", "github", "portfolio", "built "))
+
+
+def _has_real_work_signal(resume_text: str) -> bool:
+    text = resume_text.lower()
+    return any(
+        token in text
+        for token in ("worked at", "experience as", "full-time", "company", "employment", "engineer at", "analyst at")
+    )
+
+
+def compute_experience_score(
+    resume_text: str,
+    job_description: str,
+    role: str = "unknown",
+) -> ExperienceScoreResult:
     candidate_exp = _extract_candidate_experience_years(resume_text)
     required_exp = _extract_required_experience_years(job_description)
-    if required_exp is None or required_exp <= 0:
-        # Missing JD requirement should not over-inflate; use neutral-high default.
-        return ExperienceScoreResult(score=70.0, candidate_years=candidate_exp, required_years=None)
+    has_projects = _has_project_signal(resume_text)
+    no_real_experience = not _has_real_work_signal(resume_text)
+    fresher = candidate_exp < 1.0 or ("fresher" in resume_text.lower() or "student" in resume_text.lower())
 
-    if candidate_exp >= required_exp:
-        score = 100.0
+    if fresher:
+        score = 50.0
+    elif required_exp is None or required_exp <= 0:
+        score = min(100.0, candidate_exp * 12.0)
     else:
-        score = (candidate_exp / required_exp) * 100.0
+        score = min(100.0, (candidate_exp / required_exp) * 100.0)
+
+    role_l = role.lower()
+    if "business analyst" in role_l and no_real_experience:
+        score *= 0.6
+    if any(x in role_l for x in ("data analyst", "data scientist", "ml engineer", "machine learning engineer")) and has_projects:
+        score += 10.0
+
     return ExperienceScoreResult(
         score=round(_clamp_0_100(score), 2),
         candidate_years=candidate_exp,
         required_years=required_exp,
+        fresher=fresher,
+        has_projects=has_projects,
+        no_real_experience=no_real_experience,
     )
 
 
-ROLE_KEYWORDS: dict[str, set[str]] = {
-    "data analyst": {"dashboard", "kpi", "reporting", "tableau", "power bi", "analytics"},
-    "data scientist": {"machine learning", "model", "prediction", "feature engineering", "experiment"},
-    "backend engineer": {"api", "fastapi", "microservices", "postgresql", "system design"},
-    "frontend engineer": {"react", "next.js", "typescript", "ui", "ux"},
-}
-
-
-def compute_role_alignment_boost(resume_text: str, job_description: str) -> float:
-    jd = job_description.lower()
+def compute_role_alignment_boost(resume_text: str, role: str) -> float:
+    role_l = role.lower()
     resume = resume_text.lower()
-    target_role = None
-    for role in ROLE_KEYWORDS:
-        if role in jd:
-            target_role = role
-            break
-    if not target_role:
-        return 0.0
-    keywords = ROLE_KEYWORDS[target_role]
-    hit_count = sum(1 for kw in keywords if kw in resume)
-    coverage = hit_count / max(1, len(keywords))
-    return round(min(10.0, coverage * 10.0), 2)
+    if "data analyst" in role_l or "data scientist" in role_l:
+        if any(k in resume for k in ("project", "dashboard", "kpi", "analysis", "model", "prediction")):
+            return 8.0
+    return 0.0
 
 
 def compile_insights(
     semantic_score: float,
     skill: SkillScoreResult,
     experience: ExperienceScoreResult,
+    domain_match: bool,
+    role: str,
 ) -> list[str]:
     insights: list[str] = []
-    if semantic_score >= 75:
-        insights.append("Strong semantic match with job role.")
+    if semantic_score >= 75 and domain_match:
+        insights.append(f"Strong match for {role.title()} role.")
     elif semantic_score >= 55:
         insights.append("Moderate semantic relevance; profile aligns partially with role context.")
     else:
         insights.append("Low semantic relevance to the role context.")
 
-    critical_missing = [s for s, w in skill.required_skills_with_weights.items() if w == 3 and s in skill.missing_skills]
+    critical_missing = skill.missing_critical_skills
     if critical_missing:
         insights.append(f"Missing critical skills: {', '.join(critical_missing[:4])}.")
     elif skill.missing_skills:
@@ -129,11 +212,18 @@ def compile_insights(
     else:
         insights.append("Skill coverage is complete for listed requirements.")
 
-    if experience.required_years is None:
+    if experience.fresher:
+        insights.append("Profile appears fresher-level; experience score is adjusted accordingly.")
+    elif experience.required_years is None:
         insights.append("Experience requirement was not explicit in the job description.")
-    elif experience.candidate_years >= experience.required_years:
+    elif experience.candidate_years >= (experience.required_years or 0):
         insights.append("Experience meets or exceeds the role requirement.")
     else:
         insights.append("Experience is below the required threshold for this role.")
+
+    if not domain_match:
+        insights.append("Domain mismatch detected between resume profile and target role.")
+    if experience.has_projects and any(x in role.lower() for x in ("data analyst", "data scientist")):
+        insights.append("Project experience boosts score for data-focused role.")
 
     return insights

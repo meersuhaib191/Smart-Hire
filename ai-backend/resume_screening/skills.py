@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from difflib import SequenceMatcher
+from functools import lru_cache
 from typing import Iterable
 import re
 
@@ -77,9 +78,9 @@ def _all_aliases() -> dict[str, set[str]]:
 
 def _extract_spacy_nouns(text: str) -> set[str]:
     try:
-        import spacy  # type: ignore
-
-        nlp = spacy.load("en_core_web_sm")
+        nlp = _load_spacy_model()
+        if nlp is None:
+            return set()
         doc = nlp(text.lower())
         noun_chunks = {
             _normalize(chunk.text)
@@ -94,6 +95,16 @@ def _extract_spacy_nouns(text: str) -> set[str]:
         return noun_chunks.union(entities)
     except Exception:
         return set()
+
+
+@lru_cache(maxsize=1)
+def _load_spacy_model():
+    try:
+        import spacy  # type: ignore
+
+        return spacy.load("en_core_web_sm")
+    except Exception:
+        return None
 
 
 def extract_skills(text: str, lexicon: Iterable[str] = DEFAULT_SKILL_LEXICON) -> set[str]:
@@ -176,6 +187,7 @@ class SkillScoreResult:
     score: float
     matched_skills: list[str]
     missing_skills: list[str]
+    missing_critical_skills: list[str]
     required_skills_with_weights: dict[str, int]
     matched_weight: int
     total_weight: int
@@ -188,6 +200,7 @@ def compute_skill_score(job_description: str, resume_text: str) -> SkillScoreRes
 
     matched: list[str] = []
     missing: list[str] = []
+    missing_critical: list[str] = []
     matched_weight = 0
     total_weight = sum(required.values())
     critical_missing = 0
@@ -202,12 +215,14 @@ def compute_skill_score(job_description: str, resume_text: str) -> SkillScoreRes
             missing.append(skill)
             if weight == CRITICAL_WEIGHT:
                 critical_missing += 1
+                missing_critical.append(skill)
 
     if total_weight == 0:
         return SkillScoreResult(
             score=0.0,
             matched_skills=[],
             missing_skills=[],
+            missing_critical_skills=[],
             required_skills_with_weights={},
             matched_weight=0,
             total_weight=0,
@@ -215,8 +230,8 @@ def compute_skill_score(job_description: str, resume_text: str) -> SkillScoreRes
 
     raw_score = (matched_weight / total_weight) * 100.0
     if critical_missing > 0:
-        # Penalize missing criticals aggressively; multiplicative penalty avoids unrealistic highs.
-        raw_score *= max(0.4, 1.0 - (0.25 * critical_missing))
+        # Hard ATS constraint: any critical gap heavily suppresses skill score.
+        raw_score *= 0.6
 
     # Anti-inflation rule: never 100 unless all required skills matched.
     if len(missing) > 0:
@@ -226,6 +241,7 @@ def compute_skill_score(job_description: str, resume_text: str) -> SkillScoreRes
         score=round(max(0.0, min(100.0, raw_score)), 2),
         matched_skills=sorted(set(matched)),
         missing_skills=sorted(set(missing)),
+        missing_critical_skills=sorted(set(missing_critical)),
         required_skills_with_weights=required,
         matched_weight=matched_weight,
         total_weight=total_weight,
