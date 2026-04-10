@@ -1,0 +1,1 @@
+{"resume_id": "sample-1", "predicted_role": "frontend engineer", "true_role": "data analyst", "features": {"semantic": 0.42, "skills": 0.1, "experience": 0.5}, "error_type": "skill_mismatch"}

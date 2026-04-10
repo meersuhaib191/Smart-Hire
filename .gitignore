@@ -27,18 +27,12 @@
 # custom debug and scripts
 *.log
 *.txt
-*.py
 ai-backend/venv/
 __pycache__/
 *.pyc
-
-# keep standalone ATS module source tracked
-!ai-backend/resume_screening/
-!ai-backend/resume_screening/**/*.py
-!ai-backend/resume_screening/**/*.md
-!ai-backend/resume_screening/**/*.txt
-!ai-backend/resume_screening/**/*.json
-!ai-backend/resume_screening/**/requirements.txt
+*.pyo
+*.pyd
+.pytest_cache/
 
 # debug
 npm-debug.log*

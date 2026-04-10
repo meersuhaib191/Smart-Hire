@@ -1,2 +1,0 @@
-We need a data engineer with Python, SQL, ETL pipelines, PostgreSQL, and cloud deployment experience.
-Knowledge of Docker and workflow automation is preferred.

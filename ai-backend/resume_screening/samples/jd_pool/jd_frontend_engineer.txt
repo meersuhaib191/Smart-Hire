@@ -1,2 +1,0 @@
-Hiring frontend engineer with React, Next.js, TypeScript, Tailwind, and strong UI/UX skills.
-Basic API integration and testing knowledge required.
