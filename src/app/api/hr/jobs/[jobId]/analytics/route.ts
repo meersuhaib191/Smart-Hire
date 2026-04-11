@@ -12,7 +12,7 @@ export async function GET(_request: Request, context: { params: Promise<{ jobId:
     const { data: jobMeta } = await admin
       .from("jobs")
       .select(
-        "id, title, submission_deadline_at, shortlist_status, shortlist_ran_at, shortlist_selected_count, shortlist_total_submissions"
+        "id, title, submission_deadline_at, shortlist_status, shortlist_error, shortlist_ran_at, shortlist_selected_count, shortlist_total_submissions"
       )
       .eq("id", jobId)
       .maybeSingle();
@@ -53,6 +53,7 @@ export async function GET(_request: Request, context: { params: Promise<{ jobId:
               title: jobMeta.title,
               submissionDeadlineAt: (jobMeta as { submission_deadline_at?: string | null }).submission_deadline_at || null,
               shortlistStatus: (jobMeta as { shortlist_status?: string | null }).shortlist_status || null,
+              shortlistError: (jobMeta as { shortlist_error?: string | null }).shortlist_error || null,
               shortlistRanAt: (jobMeta as { shortlist_ran_at?: string | null }).shortlist_ran_at || null,
               shortlistSelectedCount: Number(
                 (jobMeta as { shortlist_selected_count?: number | null }).shortlist_selected_count || 0
@@ -124,6 +125,7 @@ export async function GET(_request: Request, context: { params: Promise<{ jobId:
             title: jobMeta.title,
             submissionDeadlineAt: (jobMeta as { submission_deadline_at?: string | null }).submission_deadline_at || null,
             shortlistStatus: (jobMeta as { shortlist_status?: string | null }).shortlist_status || null,
+            shortlistError: (jobMeta as { shortlist_error?: string | null }).shortlist_error || null,
             shortlistRanAt: (jobMeta as { shortlist_ran_at?: string | null }).shortlist_ran_at || null,
             shortlistSelectedCount: Number(
               (jobMeta as { shortlist_selected_count?: number | null }).shortlist_selected_count || 0

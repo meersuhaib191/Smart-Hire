@@ -19,12 +19,18 @@ type CandidateRow = {
   rankPosition: number | null;
 };
 
+type JobAnalyticsMeta = {
+  shortlistStatus: string | null;
+  shortlistError: string | null;
+};
+
 export default function HrCandidatesPage() {
   const [jobs, setJobs] = useState<JobRow[]>([]);
   const [jobId, setJobId] = useState("");
   const [candidates, setCandidates] = useState<CandidateRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [jobMeta, setJobMeta] = useState<JobAnalyticsMeta | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -53,10 +59,12 @@ export default function HrCandidatesPage() {
       if (!res.ok) {
         setError(json.error || "Failed to load candidates.");
         setCandidates([]);
+        setJobMeta(null);
         return;
       }
       setError("");
       setCandidates((json.candidates || []) as CandidateRow[]);
+      setJobMeta((json.job || null) as JobAnalyticsMeta | null);
     })();
   }, [jobId]);
 
@@ -110,6 +118,12 @@ export default function HrCandidatesPage() {
         </CardHeader>
         <CardContent className="space-y-3">
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
+          {!error && jobMeta?.shortlistStatus === "failed" ? (
+            <p className="text-sm text-amber-700">
+              Shortlist failed for this job: {jobMeta.shortlistError || "Unknown error"}. ATS/ranking values stay blank
+              until shortlist reruns successfully.
+            </p>
+          ) : null}
           {!sorted.length && !error ? <p className="text-sm text-slate-500">No candidates found for this job.</p> : null}
           {sorted.map((candidate) => (
             <div key={candidate.applicationId} className="rounded-xl border border-slate-200 p-4">
