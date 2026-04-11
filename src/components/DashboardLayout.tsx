@@ -19,7 +19,7 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
 
   if (!hasCheckedSession) {
     return (
-      <div className="grid min-h-screen place-items-center bg-slate-50 text-sm text-slate-500">
+      <div className="grid min-h-screen place-items-center bg-white text-sm text-slate-500 dark:bg-slate-950 dark:text-slate-300">
         Restoring session...
       </div>
     );
@@ -28,7 +28,7 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
   if (!isAuthenticated) return null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-100 to-indigo-50 text-slate-900 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900 dark:text-slate-100">
+    <div className="app-shell min-h-screen">
       <Sidebar
         role={user?.role || 'applicant'}
         desktopCollapsed={desktopCollapsed}

@@ -59,6 +59,7 @@ async function ensureMcqsForJob(
       .filter(Boolean);
   const generated = await generateMcqsFromContext({
     skills,
+    jobId,
     count: toGenerate,
     jobTitle: String(job.title || ""),
     jobDescription: String(job.description || ""),

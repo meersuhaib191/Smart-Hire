@@ -1,10 +1,10 @@
 "use client";
 import React from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
+import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import Link from 'next/link';
-import { Search, Filter, MoreHorizontal, Eye } from 'lucide-react';
+import { Search, Filter, Eye } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 
 const applications = [
@@ -18,18 +18,18 @@ export const MyApplicationsPage = () => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-slate-900">My Applications</h1>
+        <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">My Applications</h1>
         <Button leftIcon={<Filter className="h-4 w-4" />} variant="outline">Filter</Button>
       </div>
 
-      <div className="flex items-center gap-4 bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+      <div className="flex items-center gap-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/70">
         <Input 
           placeholder="Search applications..." 
           className="max-w-md border-slate-200" 
           leftIcon={<Search className="h-4 w-4 text-slate-400" />} 
         />
         <div className="flex-1"></div>
-        <span className="text-sm text-slate-500">Showing 4 applications</span>
+        <span className="text-sm text-slate-500 dark:text-slate-300">Showing 4 applications</span>
       </div>
 
       <Card>

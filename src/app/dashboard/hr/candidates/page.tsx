@@ -85,14 +85,14 @@ export default function HrCandidatesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-3xl border border-white/40 bg-white/80 p-6 shadow-sm dark:border-white/10 dark:bg-slate-900/70">
+      <div className="app-card p-6">
         <h1 className="text-3xl font-semibold tracking-tight text-slate-900 dark:text-white">Candidates</h1>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-300">
           Ranked candidate list by ATS score and stage progression for each job.
         </p>
       </div>
 
-      <Card className="rounded-2xl border-white/40 bg-white/80 dark:border-white/10 dark:bg-slate-900/70">
+      <Card className="rounded-2xl">
         <CardHeader>
           <CardTitle className="dark:text-white">Select Job</CardTitle>
           <CardDescription className="dark:text-slate-300">Choose a role to review ranked candidates.</CardDescription>
@@ -113,7 +113,7 @@ export default function HrCandidatesPage() {
         </CardContent>
       </Card>
 
-      <Card className="rounded-2xl border-white/40 bg-white/80 dark:border-white/10 dark:bg-slate-900/70">
+      <Card className="rounded-2xl">
         <CardHeader>
           <CardTitle className="dark:text-white">Ranked Candidates</CardTitle>
           <CardDescription className="dark:text-slate-300">Top-ranked applicants appear first.</CardDescription>

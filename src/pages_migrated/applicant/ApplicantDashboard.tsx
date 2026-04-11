@@ -15,6 +15,7 @@ import {
 import { Briefcase, Calendar, CheckCircle, Clock, Trophy, Video } from 'lucide-react';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
+import { chartTheme } from '@/theme/chart';
 
 type ApplicationRow = {
   id: string;
@@ -169,26 +170,26 @@ export const ApplicantDashboard = () => {
             <div className="h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={monthlyData}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartTheme.grid} />
                   <XAxis 
                     dataKey="name" 
-                    stroke="#64748b" 
+                    stroke={chartTheme.axis} 
                     fontSize={12} 
                     tickLine={false} 
                     axisLine={false} 
                   />
                   <YAxis 
-                    stroke="#64748b" 
+                    stroke={chartTheme.axis} 
                     fontSize={12} 
                     tickLine={false} 
                     axisLine={false} 
                     tickFormatter={(value) => `${value}`} 
                   />
                   <Tooltip 
-                    contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0' }}
-                    cursor={{ fill: '#f1f5f9' }}
+                    contentStyle={{ backgroundColor: chartTheme.tooltipBg, borderRadius: '8px', border: `1px solid ${chartTheme.grid}`, color: chartTheme.tooltipText }}
+                    cursor={{ fill: chartTheme.grid }}
                   />
-                  <Bar dataKey="applications" fill="#4f46e5" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="applications" fill={chartTheme.primary} radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>

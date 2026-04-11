@@ -7,12 +7,15 @@ import { Play, Send, Clock } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { toast } from 'sonner';
 import { MonacoCodeEditor } from '@/components/coding/MonacoCodeEditor';
+import { useTheme } from '@/hooks/useTheme';
 
 export const CodingPage = ({
   challengeId,
 }: {
   challengeId: string;
 }) => {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
   const searchParams = useSearchParams();
   const applicationId = searchParams.get("applicationId") || "";
   const language = "javascript";
@@ -86,9 +89,9 @@ console.log("Sum of 5 and 7 is:", sum(5, 7));
   };
 
   return (
-    <div className="h-[calc(100vh-4rem)] flex flex-col bg-slate-950 text-slate-200">
+    <div className={`h-[calc(100vh-4rem)] flex flex-col ${isDark ? "bg-slate-950 text-slate-200" : "bg-white text-slate-900"}`}>
       {/* Top Bar */}
-      <div className="h-14 border-b border-slate-800 bg-slate-900/95 backdrop-blur flex items-center justify-between px-4">
+      <div className={`h-14 border-b backdrop-blur flex items-center justify-between px-4 ${isDark ? "border-slate-800 bg-slate-900/95" : "border-slate-200 bg-white/95"}`}>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <h2 className="font-semibold text-white">1. Two Sum</h2>
@@ -135,21 +138,21 @@ console.log("Sum of 5 and 7 is:", sum(5, 7));
             {activeTab === 'problem' ? (
               <>
                 <div>
-                  <h3 className="text-xl font-bold text-white mb-4">Problem Description</h3>
-                  <p className="leading-relaxed text-slate-300">
-                    Given an array of integers <code className="bg-slate-800 px-1 py-0.5 rounded text-indigo-400">nums</code> and an integer <code className="bg-slate-800 px-1 py-0.5 rounded text-indigo-400">target</code>, return indices of the two numbers such that they add up to <code className="bg-slate-800 px-1 py-0.5 rounded text-indigo-400">target</code>.
+                    <h3 className={`text-xl font-bold mb-4 ${isDark ? "text-white" : "text-slate-900"}`}>Problem Description</h3>
+                  <p className={`leading-relaxed ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                    Given an array of integers <code className={`${isDark ? "bg-slate-800 text-indigo-400" : "bg-slate-100 text-indigo-600"} rounded px-1 py-0.5`}>nums</code> and an integer <code className={`${isDark ? "bg-slate-800 text-indigo-400" : "bg-slate-100 text-indigo-600"} rounded px-1 py-0.5`}>target</code>, return indices of the two numbers such that they add up to <code className={`${isDark ? "bg-slate-800 text-indigo-400" : "bg-slate-100 text-indigo-600"} rounded px-1 py-0.5`}>target</code>.
                   </p>
-                  <p className="leading-relaxed text-slate-300 mt-4">
+                  <p className={`mt-4 leading-relaxed ${isDark ? "text-slate-300" : "text-slate-700"}`}>
                     You may assume that each input would have <strong>exactly one solution</strong>, and you may not use the same element twice.
                   </p>
-                  <p className="leading-relaxed text-slate-300 mt-4">
+                  <p className={`mt-4 leading-relaxed ${isDark ? "text-slate-300" : "text-slate-700"}`}>
                     You can return the answer in any order.
                   </p>
                 </div>
 
                 <div>
-                  <h4 className="font-semibold text-white mb-3">Example 1:</h4>
-                  <div className="bg-slate-800 p-4 rounded-lg font-mono text-sm">
+                  <h4 className={`mb-3 font-semibold ${isDark ? "text-white" : "text-slate-900"}`}>Example 1:</h4>
+                  <div className={`${isDark ? "bg-slate-800" : "bg-slate-100"} rounded-lg p-4 font-mono text-sm`}>
                     <div className="mb-2"><span className="text-slate-500">Input:</span> nums = [2,7,11,15], target = 9</div>
                     <div className="mb-2"><span className="text-slate-500">Output:</span> [0,1]</div>
                     <div><span className="text-slate-500">Explanation:</span> Because nums[0] + nums[1] == 9, we return [0, 1].</div>
@@ -157,8 +160,8 @@ console.log("Sum of 5 and 7 is:", sum(5, 7));
                 </div>
 
                 <div>
-                  <h4 className="font-semibold text-white mb-3">Constraints:</h4>
-                  <ul className="list-disc list-inside space-y-1 text-slate-400">
+                  <h4 className={`mb-3 font-semibold ${isDark ? "text-white" : "text-slate-900"}`}>Constraints:</h4>
+                  <ul className={`list-disc list-inside space-y-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                     <li>2 &le; nums.length &le; 10<sup>4</sup></li>
                     <li>-10<sup>9</sup> &le; nums[i] &le; 10<sup>9</sup></li>
                     <li>-10<sup>9</sup> &le; target &le; 10<sup>9</sup></li>
@@ -179,9 +182,9 @@ console.log("Sum of 5 and 7 is:", sum(5, 7));
         {/* Right Panel: Code Editor & Console */}
         <div className="flex-1 flex flex-col">
           <div className="flex-1 flex flex-col">
-            <div className="h-[70%] bg-[#1e1e1e] flex flex-col">
+            <div className={`h-[70%] flex flex-col ${isDark ? "bg-[#1e1e1e]" : "bg-slate-100"}`}>
               <div className="h-full flex flex-col">
-                <div className="h-10 bg-[#252526] flex items-center px-4 border-b border-[#333]">
+                <div className={`h-10 flex items-center px-4 border-b ${isDark ? "bg-[#252526] border-[#333]" : "bg-white border-slate-200"}`}>
                   <span className="text-sm text-yellow-500 font-medium">JavaScript</span>
                 </div>
                 <MonacoCodeEditor value={code} language={language} onChange={setCode} />
@@ -190,18 +193,18 @@ console.log("Sum of 5 and 7 is:", sum(5, 7));
             
             <div className="h-1 bg-slate-800" />
             
-            <div className="flex-1 bg-slate-900 flex flex-col overflow-y-auto">
-               <div className="h-10 bg-slate-900 flex items-center px-4 border-b border-slate-800 justify-between">
-                  <span className="text-sm font-medium text-slate-300">Console</span>
+            <div className={`flex-1 flex flex-col overflow-y-auto ${isDark ? "bg-slate-900" : "bg-white"}`}>
+               <div className={`h-10 flex items-center justify-between px-4 border-b ${isDark ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"}`}>
+                  <span className={`text-sm font-medium ${isDark ? "text-slate-300" : "text-slate-700"}`}>Console</span>
                   <div className="flex gap-2">
-                    <button className="text-xs text-slate-400 hover:text-white" onClick={() => setOutput(null)}>Clear</button>
+                    <button className={`text-xs ${isDark ? "text-slate-400 hover:text-white" : "text-slate-500 hover:text-slate-900"}`} onClick={() => setOutput(null)}>Clear</button>
                   </div>
                 </div>
                 <div className="flex-1 p-4 font-mono text-sm overflow-auto">
                   {output ? (
-                    <pre className="text-green-400 whitespace-pre-wrap">{output}</pre>
+                    <pre className={`${isDark ? "text-green-400" : "text-green-700"} whitespace-pre-wrap`}>{output}</pre>
                   ) : (
-                    <div className="text-slate-500 italic">Run your code to see results here...</div>
+                    <div className={`${isDark ? "text-slate-500" : "text-slate-500"} italic`}>Run your code to see results here...</div>
                   )}
                 </div>
             </div>

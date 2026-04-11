@@ -280,6 +280,7 @@ export async function POST(request: Request) {
       const mcqs = await generateMcqsFromContext({
         skills,
         count: 12,
+        jobId: createdJob.id,
         jobTitle: createdJob.title,
         jobDescription: body.description,
         difficultyHint: "challenging",
@@ -358,6 +359,7 @@ export async function POST(request: Request) {
     const mcqs = await generateMcqsFromContext({
       skills,
       count: 12,
+      jobId: job.id,
       jobTitle: job.title,
       jobDescription: body.description,
       difficultyHint: "challenging",

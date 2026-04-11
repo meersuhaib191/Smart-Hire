@@ -30,23 +30,67 @@
   --color-accent-green-500: #22c55e;
   --color-accent-amber-500: #f59e0b;
   --color-accent-red-500: #ef4444;
+
+  --color-command-bg: #ffffff;
+  --color-command-surface: #ffffff;
+  --color-command-surface-muted: #f8fafc;
+  --color-command-border: #e5e7eb;
+  --color-command-foreground: #111827;
+  --color-command-foreground-muted: #6b7280;
 }
 
 :root {
   --background: #ffffff;
-  --foreground: #0f172a;
+  --foreground: #111827;
+  --surface: #ffffff;
+  --surface-muted: #f8fafc;
+  --border-color: #e5e7eb;
+  --text-muted: #6b7280;
+  --ring: #4f46e5;
+  --chart-primary: #4f46e5;
+  --chart-secondary: #0ea5e9;
+  --chart-tertiary: #8b5cf6;
+  --chart-positive: #22c55e;
+  --chart-warning: #f59e0b;
+  --chart-grid: #e2e8f0;
+  --chart-axis: #64748b;
+  --chart-tooltip-bg: #ffffff;
+  --chart-tooltip-text: #0f172a;
 }
 
 .dark {
   --background: #020617;
   --foreground: #f8fafc;
+  --surface: rgba(15, 23, 42, 0.72);
+  --surface-muted: rgba(15, 23, 42, 0.9);
+  --border-color: rgba(51, 65, 85, 0.9);
+  --text-muted: #cbd5e1;
+  --ring: #818cf8;
+  --chart-primary: #818cf8;
+  --chart-secondary: #22d3ee;
+  --chart-tertiary: #a78bfa;
+  --chart-positive: #4ade80;
+  --chart-warning: #fbbf24;
+  --chart-grid: rgba(71, 85, 105, 0.6);
+  --chart-axis: #94a3b8;
+  --chart-tooltip-bg: rgba(15, 23, 42, 0.95);
+  --chart-tooltip-text: #f8fafc;
 }
 
 body {
-  background: var(--background);
+  background-color: var(--background);
+  background-image: none;
   color: var(--foreground);
   font-family: var(--font-inter), Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
   text-rendering: optimizeLegibility;
+}
+
+.dark body {
+  background-image:
+    radial-gradient(circle at 10% 20%, rgba(129, 140, 248, 0.3), transparent 36%),
+    radial-gradient(circle at 90% 10%, rgba(34, 211, 238, 0.22), transparent 32%),
+    radial-gradient(circle at 70% 80%, rgba(236, 72, 153, 0.18), transparent 34%),
+    linear-gradient(180deg, #020617 0%, #0b1120 100%);
 }
 
 h1,
@@ -57,8 +101,42 @@ h4 {
 }
 
 @layer utilities {
+  .app-shell {
+    @apply bg-white text-slate-900 dark:bg-gradient-to-br dark:from-slate-950 dark:via-slate-950 dark:to-slate-900 dark:text-slate-100;
+  }
+
+  .app-surface {
+    background-color: var(--surface);
+    border-color: var(--border-color);
+    color: var(--foreground);
+  }
+
+  .app-card {
+    @apply rounded-2xl border shadow-sm backdrop-blur;
+    background-color: var(--surface);
+    border-color: var(--border-color);
+    color: var(--foreground);
+  }
+
+  .app-card-muted {
+    @apply rounded-2xl border shadow-sm;
+    background-color: var(--surface-muted);
+    border-color: var(--border-color);
+    color: var(--foreground);
+  }
+
+  .app-text-muted {
+    color: var(--text-muted);
+  }
+
+  .app-ring {
+    --tw-ring-color: var(--ring);
+  }
+
   .glass-panel {
-    @apply bg-white/80 backdrop-blur-md border border-neutral-200 shadow-sm;
+    @apply border shadow-sm;
+    background-color: var(--surface);
+    border-color: var(--border-color);
   }
 
   .card-hover {
@@ -77,9 +155,39 @@ h4 {
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-slate-300 rounded-full;
+  @apply rounded-full bg-slate-300 dark:bg-slate-700;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-slate-400;
+  @apply bg-slate-400 dark:bg-slate-600;
+}
+
+/* Legacy page normalization for dark command-center mode */
+.dark .bg-white {
+  background-color: rgba(15, 23, 42, 0.72);
+}
+
+.dark .bg-slate-50,
+.dark .bg-slate-100 {
+  background-color: rgba(30, 41, 59, 0.72);
+}
+
+.dark .border-slate-100,
+.dark .border-slate-200,
+.dark .border-slate-300 {
+  border-color: rgba(71, 85, 105, 0.8);
+}
+
+.dark .text-slate-900 {
+  color: #f8fafc;
+}
+
+.dark .text-slate-700,
+.dark .text-slate-600 {
+  color: #cbd5e1;
+}
+
+.dark .text-slate-500,
+.dark .text-slate-400 {
+  color: #94a3b8;
 }

@@ -1,5 +1,19 @@
 import { McqQuestionInput } from "@/server/mcq/types";
 
+type McqEngineQuestion = {
+  question: string;
+  options: string[];
+  correct_answer: string;
+  explanation?: string;
+  difficulty?: "medium" | "hard";
+  topic?: string;
+  hash_id?: string;
+};
+
+type McqEngineGenerateResponse = {
+  questions?: McqEngineQuestion[];
+};
+
 const fallbackQuestions = (skills: string[], count: number): McqQuestionInput[] => {
   const sourceSkills = skills.length ? skills : ["General Programming"];
   const items: McqQuestionInput[] = [];
@@ -57,6 +71,90 @@ const parseQuestions = (raw: string, expectedCount: number): McqQuestionInput[] 
   return valid.slice(0, expectedCount);
 };
 
+const getEngineBaseUrl = (): string => {
+  const configured = process.env.MCQ_ENGINE_URL || process.env.NEXT_PUBLIC_MCQ_ENGINE_URL || "";
+  return configured.replace(/\/+$/, "");
+};
+
+const buildEngineJobDescription = (input: {
+  skills: string[];
+  jobTitle?: string;
+  jobDescription?: string;
+}): string => {
+  const parts: string[] = [];
+  if (input.jobTitle?.trim()) parts.push(`Job Title: ${input.jobTitle.trim()}`);
+  if (input.jobDescription?.trim()) parts.push(`Job Description: ${input.jobDescription.trim()}`);
+  if (input.skills.length) parts.push(`Core Skills: ${input.skills.join(", ")}`);
+  return parts.join("\n");
+};
+
+const mapEngineQuestion = (q: McqEngineQuestion): McqQuestionInput | null => {
+  if (!q.question || !Array.isArray(q.options) || q.options.length !== 4 || !q.correct_answer) return null;
+  const correctIndex = q.options.findIndex((option) => option === q.correct_answer);
+  if (correctIndex < 0 || correctIndex > 3) return null;
+  return {
+    questionText: q.question,
+    options: q.options,
+    correctOption: correctIndex,
+    skillTag: q.topic || undefined,
+    difficulty: q.difficulty === "hard" ? "hard" : "medium",
+  };
+};
+
+const generateViaMcqEngine = async (input: {
+  skills: string[];
+  count: number;
+  jobId?: string;
+  jobTitle?: string;
+  jobDescription?: string;
+  candidateId?: string;
+  companyTier?: "faang" | "startup" | "enterprise" | "general";
+  candidatePerformanceScore?: number;
+}): Promise<McqQuestionInput[] | null> => {
+  const baseUrl = getEngineBaseUrl();
+  if (!baseUrl) return null;
+
+  const jobDescription = buildEngineJobDescription(input);
+  if (!jobDescription || jobDescription.length < 30) return null;
+
+  const targetCount = Math.max(1, input.count);
+  const uniqueByText = new Map<string, McqQuestionInput>();
+  const rounds = Math.max(1, Math.ceil(targetCount / 10));
+
+  for (let round = 0; round < rounds; round += 1) {
+    const candidateId =
+      input.candidateId && rounds === 1
+        ? input.candidateId
+        : `${input.candidateId || "seed"}-${Date.now()}-${round}`;
+
+    const response = await fetch(`${baseUrl}/mcq/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        job_id: input.jobId || `job-${Math.abs(jobDescription.length + input.skills.length)}`,
+        job_description: jobDescription,
+        candidate_id: candidateId,
+        company_tier: input.companyTier || "general",
+        candidate_performance_score: input.candidatePerformanceScore,
+      }),
+    });
+
+    if (!response.ok) continue;
+    const payload = (await response.json()) as McqEngineGenerateResponse;
+    const questions = payload.questions || [];
+
+    for (const item of questions) {
+      const mapped = mapEngineQuestion(item);
+      if (!mapped) continue;
+      uniqueByText.set(mapped.questionText.trim().toLowerCase(), mapped);
+    }
+
+    if (uniqueByText.size >= targetCount) break;
+  }
+
+  return uniqueByText.size ? Array.from(uniqueByText.values()).slice(0, targetCount) : null;
+};
+
 export async function generateMcqs(skills: string[], count: number): Promise<McqQuestionInput[]> {
   return generateMcqsFromContext({ skills, count });
 }
@@ -64,12 +162,31 @@ export async function generateMcqs(skills: string[], count: number): Promise<Mcq
 export async function generateMcqsFromContext(input: {
   skills: string[];
   count: number;
+  jobId?: string;
+  candidateId?: string;
+  companyTier?: "faang" | "startup" | "enterprise" | "general";
+  candidatePerformanceScore?: number;
   jobTitle?: string;
   jobDescription?: string;
   difficultyHint?: "balanced" | "challenging";
 }): Promise<McqQuestionInput[]> {
   const skills = input.skills || [];
   const count = input.count;
+
+  const engineQuestions = await generateViaMcqEngine({
+    skills,
+    count,
+    jobId: input.jobId,
+    candidateId: input.candidateId,
+    companyTier: input.companyTier,
+    candidatePerformanceScore: input.candidatePerformanceScore,
+    jobTitle: input.jobTitle,
+    jobDescription: input.jobDescription,
+  });
+  if (engineQuestions?.length) {
+    return engineQuestions.slice(0, count);
+  }
+
   const openAiKey = process.env.OPENAI_API_KEY;
   if (!openAiKey) {
     return fallbackQuestions(skills, count);

@@ -76,8 +76,8 @@ export const LoginPage = () => {
   }, [hasCheckedSession, isAuthenticated, user, router]);
 
   return (
-    <div className="min-h-screen grid bg-slate-50 lg:grid-cols-2">
-      <div className="hidden lg:flex flex-col justify-between bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 p-12 text-white">
+    <div className="grid min-h-screen bg-white dark:bg-slate-950 lg:grid-cols-2">
+      <div className="hidden flex-col justify-between bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 p-12 text-white lg:flex">
         <div className="flex items-center gap-3">
           <div className="grid h-11 w-11 place-items-center rounded-xl bg-white/10 backdrop-blur">
             <BrainCircuit size={22} />
@@ -103,13 +103,13 @@ export const LoginPage = () => {
       </div>
 
       <div className="flex items-center justify-center px-4 py-10 sm:px-6 lg:px-10">
-        <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-sm sm:p-10">
+        <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-sm dark:border-slate-700 dark:bg-slate-900/70 sm:p-10">
           <div className="text-center">
             <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-xl bg-indigo-600 text-white">
               <BrainCircuit size={24} />
             </div>
-            <h2 className="text-2xl font-semibold tracking-tight text-slate-900">Welcome back</h2>
-            <p className="mt-1 text-sm text-slate-500">
+            <h2 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">Welcome back</h2>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-300">
               New to Smart Hire?{' '}
               <Link href="/register" className="font-medium text-indigo-600 hover:text-indigo-500">
                 Create account
@@ -144,7 +144,7 @@ export const LoginPage = () => {
             </Button>
           </form>
 
-          <p className="mt-6 text-center text-xs text-slate-500">
+          <p className="mt-6 text-center text-xs text-slate-500 dark:text-slate-300">
             By continuing, you agree to Smart Hire terms and privacy policy.
           </p>
         </div>

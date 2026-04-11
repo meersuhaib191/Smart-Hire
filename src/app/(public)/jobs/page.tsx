@@ -1,5 +1,5 @@
-import { JobFeedPage } from "@/pages_migrated/public/JobFeedPage";
+import { JobListingPage } from "@/components/jobs/JobListingPage";
 
 export default function Page() {
-  return <JobFeedPage />;
+  return <JobListingPage />;
 }

@@ -2,15 +2,14 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
-import { User, Mail, Phone, MapPin, Upload, Briefcase, Award, GraduationCap } from 'lucide-react';
+import { Mail, Phone, MapPin, Upload, Briefcase, GraduationCap } from 'lucide-react';
 
 export const ProfilePage = () => {
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900">My Profile</h1>
+        <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">My Profile</h1>
         <Button>Save Changes</Button>
       </div>
 
@@ -22,22 +21,22 @@ export const ProfilePage = () => {
               <div className="w-24 h-24 rounded-full bg-slate-200 mb-4 overflow-hidden">
                 <img src="https://ui-avatars.com/api/?name=Alex+Morgan&background=random" alt="Profile" className="w-full h-full object-cover" />
               </div>
-              <h2 className="text-xl font-bold text-slate-900">Alex Morgan</h2>
-              <p className="text-slate-500">Senior Frontend Developer</p>
+              <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Alex Morgan</h2>
+              <p className="text-slate-500 dark:text-slate-300">Senior Frontend Developer</p>
               <div className="mt-4 flex gap-2">
                 <Button variant="outline" size="sm">Change Photo</Button>
               </div>
               
               <div className="w-full mt-6 space-y-3">
-                <div className="flex items-center gap-3 text-sm text-slate-600">
+                <div className="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-300">
                   <Mail size={16} />
                   alex@example.com
                 </div>
-                <div className="flex items-center gap-3 text-sm text-slate-600">
+                <div className="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-300">
                   <Phone size={16} />
                   +1 (555) 123-4567
                 </div>
-                <div className="flex items-center gap-3 text-sm text-slate-600">
+                <div className="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-300">
                   <MapPin size={16} />
                   San Francisco, CA
                 </div>
@@ -76,9 +75,9 @@ export const ProfilePage = () => {
                     <Briefcase size={20} />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-slate-900">{job.role}</h3>
-                    <p className="text-sm text-slate-500">{job.company} • {job.period}</p>
-                    <p className="text-sm text-slate-600 mt-1">{job.desc}</p>
+                    <h3 className="font-semibold text-slate-900 dark:text-slate-100">{job.role}</h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-300">{job.company} • {job.period}</p>
+                    <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{job.desc}</p>
                   </div>
                 </div>
               ))}
@@ -98,8 +97,8 @@ export const ProfilePage = () => {
                   <GraduationCap size={20} />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-slate-900">BS Computer Science</h3>
-                  <p className="text-sm text-slate-500">University of Technology • 2014 - 2018</p>
+                  <h3 className="font-semibold text-slate-900 dark:text-slate-100">BS Computer Science</h3>
+                  <p className="text-sm text-slate-500 dark:text-slate-300">University of Technology • 2014 - 2018</p>
                 </div>
               </div>
             </CardContent>
@@ -111,10 +110,10 @@ export const ProfilePage = () => {
               <CardDescription>Upload your latest resume (PDF, DOCX)</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="border-2 border-dashed border-slate-300 rounded-lg p-8 text-center hover:bg-slate-50 transition-colors cursor-pointer">
+              <div className="cursor-pointer rounded-lg border-2 border-dashed border-slate-300 p-8 text-center transition-colors hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">
                 <Upload className="mx-auto h-12 w-12 text-slate-400 mb-4" />
-                <p className="text-sm text-slate-600 font-medium">Click to upload or drag and drop</p>
-                <p className="text-xs text-slate-400 mt-1">Maximum file size 5MB</p>
+                <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Click to upload or drag and drop</p>
+                <p className="mt-1 text-xs text-slate-400 dark:text-slate-300">Maximum file size 5MB</p>
               </div>
             </CardContent>
           </Card>

@@ -82,25 +82,25 @@ export const Sidebar = ({ role, desktopCollapsed, mobileOpen, setMobileOpen }: S
 
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 flex h-screen flex-col border-r border-white/25 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-slate-100 shadow-2xl backdrop-blur-xl transition-all duration-300 lg:shadow-none',
+          'fixed inset-y-0 left-0 z-50 flex h-screen flex-col border-r border-slate-200 bg-white text-slate-800 shadow-lg backdrop-blur transition-all duration-300 dark:border-white/20 dark:bg-gradient-to-b dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 dark:text-slate-100 dark:shadow-2xl lg:shadow-none',
           sidebarWidth,
           mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         )}
       >
-        <div className="h-16 flex items-center justify-between border-b border-white/10 px-4">
+        <div className="h-16 flex items-center justify-between border-b border-slate-200 px-4 dark:border-white/10">
           <div className={cn('flex items-center gap-3 overflow-hidden', desktopCollapsed && 'lg:justify-center lg:gap-0')}>
             <div className="grid h-9 w-9 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-500 text-white shadow-lg">
               <Brain size={18} />
             </div>
             <div className={cn('min-w-0', desktopCollapsed && 'lg:hidden')}>
-              <p className="truncate text-sm font-semibold tracking-tight text-white">SmartHire</p>
-              <p className="text-[11px] text-slate-300">AI Hiring Workspace</p>
+              <p className="truncate text-sm font-semibold tracking-tight text-slate-900 dark:text-white">SmartHire</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-300">AI Hiring Workspace</p>
             </div>
           </div>
           <Button
             variant="ghost"
             size="icon"
-            className="text-slate-200 hover:bg-white/10 hover:text-white lg:hidden"
+            className="text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-white/10 dark:hover:text-white lg:hidden"
             onClick={() => setMobileOpen(false)}
           >
             <X size={18} />
@@ -108,12 +108,12 @@ export const Sidebar = ({ role, desktopCollapsed, mobileOpen, setMobileOpen }: S
         </div>
 
         <div className={cn('px-3 pt-4', desktopCollapsed && 'lg:px-2')}>
-          <div className={cn('rounded-2xl border border-white/15 bg-white/5 p-3 backdrop-blur', desktopCollapsed && 'lg:hidden')}>
-            <div className="flex items-center gap-2 text-xs font-medium text-violet-200">
+          <div className={cn('rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-white/15 dark:bg-white/5 dark:backdrop-blur', desktopCollapsed && 'lg:hidden')}>
+            <div className="flex items-center gap-2 text-xs font-medium text-indigo-600 dark:text-violet-200">
               <Sparkles size={14} />
               AI Hiring Assistant
             </div>
-            <p className="mt-1 text-[11px] leading-relaxed text-slate-300">
+            <p className="mt-1 text-[11px] leading-relaxed text-slate-600 dark:text-slate-300">
               ATS-first screening, ranking, and automation in one place.
             </p>
           </div>
@@ -135,7 +135,7 @@ export const Sidebar = ({ role, desktopCollapsed, mobileOpen, setMobileOpen }: S
           ) : null}
           <div
             className={cn(
-              'px-2 pb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400',
+              'px-2 pb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400',
               desktopCollapsed && 'lg:text-center lg:px-0'
             )}
           >
@@ -153,13 +153,13 @@ export const Sidebar = ({ role, desktopCollapsed, mobileOpen, setMobileOpen }: S
                   'group flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition-all',
                   desktopCollapsed && 'lg:justify-center lg:px-2',
                   isActive
-                    ? 'bg-gradient-to-r from-violet-500/80 to-indigo-500/80 text-white shadow-lg'
-                    : 'text-slate-300 hover:bg-white/10 hover:text-white'
+                    ? 'bg-indigo-50 text-indigo-700 shadow-sm dark:bg-gradient-to-r dark:from-violet-500/80 dark:to-indigo-500/80 dark:text-white dark:shadow-lg'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white'
                 )}
               >
                 <item.icon
                   size={18}
-                  className={cn('shrink-0', isActive ? 'text-white' : 'text-slate-400 group-hover:text-white')}
+                  className={cn('shrink-0', isActive ? 'text-indigo-600 dark:text-white' : 'text-slate-400 group-hover:text-slate-700 dark:group-hover:text-white')}
                 />
                 <span className={cn('truncate', desktopCollapsed && 'lg:hidden')}>{item.label}</span>
                 </Link>
@@ -168,16 +168,16 @@ export const Sidebar = ({ role, desktopCollapsed, mobileOpen, setMobileOpen }: S
           })}
         </div>
 
-        <div className={cn('border-t border-white/10 p-3', desktopCollapsed && 'lg:px-2')}>
-          <div className={cn('flex items-center gap-3 rounded-2xl border border-white/15 bg-white/5 p-2.5', desktopCollapsed && 'lg:justify-center')}>
+        <div className={cn('border-t border-slate-200 p-3 dark:border-white/10', desktopCollapsed && 'lg:px-2')}>
+          <div className={cn('flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-2.5 dark:border-white/15 dark:bg-white/5', desktopCollapsed && 'lg:justify-center')}>
             <img
               src={user?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=111827&color=fff`}
               alt="User avatar"
               className="h-8 w-8 rounded-full object-cover"
             />
             <div className={cn('min-w-0 flex-1', desktopCollapsed && 'lg:hidden')}>
-              <p className="truncate text-sm font-medium text-white">{user?.name || 'Guest'}</p>
-              <p className="truncate text-xs capitalize text-slate-400">{user?.role || 'visitor'}</p>
+              <p className="truncate text-sm font-medium text-slate-900 dark:text-white">{user?.name || 'Guest'}</p>
+              <p className="truncate text-xs capitalize text-slate-500 dark:text-slate-400">{user?.role || 'visitor'}</p>
             </div>
             <div className={cn('rounded-md bg-emerald-500/20 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-300', desktopCollapsed && 'lg:hidden')}>
               <ShieldCheck size={11} className="inline mr-1" />

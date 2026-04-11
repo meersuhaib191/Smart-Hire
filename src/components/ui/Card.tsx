@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 export const Card = ({ className, children, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      "rounded-lg border border-slate-200 bg-white text-slate-950 shadow-sm",
+      "rounded-2xl border border-gray-200 bg-white text-slate-900 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-100",
       className
     )}
     {...props}
@@ -27,7 +27,7 @@ export const CardTitle = ({ className, children, ...props }: React.HTMLAttribute
 );
 
 export const CardDescription = ({ className, children, ...props }: React.HTMLAttributes<HTMLParagraphElement>) => (
-  <p className={cn("text-sm text-slate-500", className)} {...props}>
+  <p className={cn("text-sm text-slate-500 dark:text-slate-300", className)} {...props}>
     {children}
   </p>
 );

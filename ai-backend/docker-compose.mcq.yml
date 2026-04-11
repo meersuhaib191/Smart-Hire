@@ -1,0 +1,43 @@
+services:
+  mcq-api:
+    build:
+      context: .
+      dockerfile: mcq_engine/Dockerfile
+    container_name: mcq-api
+    ports:
+      - "8001:8001"
+    environment:
+      MCQ_MONGO_URI: mongodb://mongo:27017
+      MCQ_DB_NAME: mcq_engine
+      MCQ_REDIS_URL: redis://redis:6379/0
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      MCQ_POOL_THRESHOLD: ${MCQ_POOL_THRESHOLD:-60}
+      MCQ_LLM_BATCH_SIZE: ${MCQ_LLM_BATCH_SIZE:-24}
+      MCQ_OVERLAP_LIMIT: ${MCQ_OVERLAP_LIMIT:-2}
+      MCQ_JACCARD_THRESHOLD: ${MCQ_JACCARD_THRESHOLD:-0.2}
+    depends_on:
+      - mongo
+      - redis
+
+  mongo:
+    image: mongo:7
+    container_name: mcq-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mcq_mongo_data:/data/db
+
+  redis:
+    image: redis:7-alpine
+    container_name: mcq-redis
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - mcq_redis_data:/data
+
+volumes:
+  mcq_mongo_data:
+  mcq_redis_data:
+

@@ -48,7 +48,7 @@ export default function HrJobsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3 rounded-3xl border border-white/40 bg-white/80 p-6 shadow-sm dark:border-white/10 dark:bg-slate-900/70">
+      <div className="app-card flex flex-wrap items-start justify-between gap-3 p-6">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight text-slate-900 dark:text-white">Jobs</h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-300">
@@ -66,19 +66,19 @@ export default function HrJobsPage() {
       </div>
 
       <div className="grid gap-3 md:grid-cols-3">
-        <Card className="rounded-2xl border-white/40 bg-white/80 dark:border-white/10 dark:bg-slate-900/70">
+        <Card className="rounded-2xl">
           <CardContent className="pt-6">
             <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-300">Total Jobs</p>
             <p className="text-2xl font-semibold text-slate-900 dark:text-white">{jobs.length}</p>
           </CardContent>
         </Card>
-        <Card className="rounded-2xl border-white/40 bg-white/80 dark:border-white/10 dark:bg-slate-900/70">
+        <Card className="rounded-2xl">
           <CardContent className="pt-6">
             <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-300">Published</p>
             <p className="text-2xl font-semibold text-slate-900 dark:text-white">{publishedCount}</p>
           </CardContent>
         </Card>
-        <Card className="rounded-2xl border-white/40 bg-white/80 dark:border-white/10 dark:bg-slate-900/70">
+        <Card className="rounded-2xl">
           <CardContent className="pt-6">
             <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-300">Total Applications</p>
             <p className="text-2xl font-semibold text-slate-900 dark:text-white">
@@ -88,7 +88,7 @@ export default function HrJobsPage() {
         </Card>
       </div>
 
-      <Card className="rounded-2xl border-white/40 bg-white/80 dark:border-white/10 dark:bg-slate-900/70">
+      <Card className="rounded-2xl">
         <CardHeader>
           <CardTitle className="dark:text-white">Posted Jobs</CardTitle>
           <CardDescription className="dark:text-slate-300">Deadline and shortlist lifecycle for each role.</CardDescription>

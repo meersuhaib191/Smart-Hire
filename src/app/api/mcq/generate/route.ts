@@ -1,10 +1,16 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdmin } from "@/server/supabase/admin";
-import { generateMcqs } from "@/server/mcq/generator";
+import { generateMcqsFromContext } from "@/server/mcq/generator";
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as { jobId?: string; count?: number };
+    const body = (await request.json()) as {
+      jobId?: string;
+      candidateId?: string;
+      companyTier?: "faang" | "startup" | "enterprise" | "general";
+      candidatePerformanceScore?: number;
+      count?: number;
+    };
     const jobId = body.jobId || "";
     const count = Math.max(1, Math.min(20, body.count || 10));
 
@@ -15,7 +21,7 @@ export async function POST(request: Request) {
     const supabase = createSupabaseAdmin();
     const { data: job, error: jobError } = await supabase
       .from("jobs")
-      .select("id, job_skills(skill_name)")
+      .select("id, title, description, job_skills(skill_name)")
       .eq("id", jobId)
       .single();
 
@@ -25,7 +31,17 @@ export async function POST(request: Request) {
 
     const skills =
       job.job_skills?.map((s: { skill_name: string }) => s.skill_name).filter(Boolean) || [];
-    const mcqs = await generateMcqs(skills, count);
+    const mcqs = await generateMcqsFromContext({
+      skills,
+      count,
+      jobId: job.id,
+      candidateId: body.candidateId,
+      companyTier: body.companyTier || "general",
+      candidatePerformanceScore: body.candidatePerformanceScore,
+      jobTitle: String(job.title || ""),
+      jobDescription: String(job.description || ""),
+      difficultyHint: "challenging",
+    });
 
     const rows = mcqs.map((q) => ({
       job_id: jobId,

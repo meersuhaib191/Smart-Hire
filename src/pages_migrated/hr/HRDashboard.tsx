@@ -17,8 +17,9 @@ import {
   Area,
   AreaChart,
 } from 'recharts';
-import { BellRing, CalendarClock, CircleAlert, GripVertical, Sparkles, Target, TrendingUp, Users } from 'lucide-react';
+import { BellRing, CalendarClock, CircleAlert, GripVertical, Sparkles, Target, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
+import { chartTheme } from '@/theme/chart';
 
 type JobRow = {
   id: string;
@@ -487,11 +488,11 @@ export const HRDashboard = () => {
           <div className="h-[220px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={stageMetrics}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 12 }} />
-                <Tooltip />
-                <Bar dataKey="count" fill="#6366f1" radius={[8, 8, 0, 0]} />
+                <CartesianGrid stroke={chartTheme.grid} strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 12, fill: chartTheme.axis }} />
+                <YAxis tick={{ fontSize: 12, fill: chartTheme.axis }} />
+                <Tooltip contentStyle={{ backgroundColor: chartTheme.tooltipBg, borderRadius: 10, border: `1px solid ${chartTheme.grid}`, color: chartTheme.tooltipText }} />
+                <Bar dataKey="count" fill={chartTheme.primary} radius={[8, 8, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -502,11 +503,11 @@ export const HRDashboard = () => {
           <div className="h-[220px]">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={summary?.dailyApplicants || []}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 12 }} />
-                <Tooltip />
-                <Line type="monotone" dataKey="applicants" stroke="#8b5cf6" strokeWidth={2.5} dot={{ r: 3 }} />
+                <CartesianGrid stroke={chartTheme.grid} strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="name" tick={{ fontSize: 12, fill: chartTheme.axis }} />
+                <YAxis tick={{ fontSize: 12, fill: chartTheme.axis }} />
+                <Tooltip contentStyle={{ backgroundColor: chartTheme.tooltipBg, borderRadius: 10, border: `1px solid ${chartTheme.grid}`, color: chartTheme.tooltipText }} />
+                <Line type="monotone" dataKey="applicants" stroke={chartTheme.tertiary} strokeWidth={2.5} dot={{ r: 3 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -519,15 +520,15 @@ export const HRDashboard = () => {
               <AreaChart data={histogramData}>
                 <defs>
                   <linearGradient id="atsScoreFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.7} />
-                    <stop offset="95%" stopColor="#4f46e5" stopOpacity={0.05} />
+                    <stop offset="5%" stopColor={chartTheme.primary} stopOpacity={0.7} />
+                    <stop offset="95%" stopColor={chartTheme.primary} stopOpacity={0.05} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="range" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 12 }} />
-                <Tooltip />
-                <Area type="monotone" dataKey="count" stroke="#4f46e5" fill="url(#atsScoreFill)" />
+                <CartesianGrid stroke={chartTheme.grid} strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="range" tick={{ fontSize: 12, fill: chartTheme.axis }} />
+                <YAxis tick={{ fontSize: 12, fill: chartTheme.axis }} />
+                <Tooltip contentStyle={{ backgroundColor: chartTheme.tooltipBg, borderRadius: 10, border: `1px solid ${chartTheme.grid}`, color: chartTheme.tooltipText }} />
+                <Area type="monotone" dataKey="count" stroke={chartTheme.primary} fill="url(#atsScoreFill)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>

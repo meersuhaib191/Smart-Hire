@@ -1,7 +1,7 @@
 "use client";
 import React, { useEffect, useMemo, useState } from 'react';
 import { useStore } from '@/store/useStore';
-import { Bell, Briefcase, LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, Search, Sun } from 'lucide-react';
+import { Bell, LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, Search, Sun } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { useRouter } from 'next/navigation';
@@ -15,7 +15,7 @@ import {
 import { Badge } from '@/components/ui/Badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { motion } from 'motion/react';
-import { useTheme } from 'next-themes';
+import { useTheme } from '@/hooks/useTheme';
 
 type HeaderProps = {
   desktopCollapsed: boolean;
@@ -42,7 +42,7 @@ export const Header = ({ desktopCollapsed, onToggleDesktop, onToggleMobile }: He
     created_at: string;
     }>
   >([]);
-  const { resolvedTheme, setTheme } = useTheme();
+  const { resolvedTheme, toggleTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
 
   const formatWhen = (iso: string) => {
@@ -55,10 +55,6 @@ export const Header = ({ desktopCollapsed, onToggleDesktop, onToggleMobile }: He
     if (hours < 24) return `${hours}h ago`;
     const days = Math.floor(hours / 24);
     return `${days}d ago`;
-  };
-
-  const toggleTheme = () => {
-    setTheme(isDark ? 'light' : 'dark');
   };
 
   const loadNotifications = async () => {
@@ -110,13 +106,13 @@ export const Header = ({ desktopCollapsed, onToggleDesktop, onToggleMobile }: He
   }, [notifications.length, notificationsLoading]);
 
   return (
-    <header className="sticky top-0 z-30 border-b border-white/15 bg-slate-950/65 backdrop-blur-xl">
+    <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur-sm dark:border-white/15 dark:bg-slate-950/65 dark:backdrop-blur-xl">
       <div className="flex h-16 items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
         <div className="flex min-w-0 items-center gap-2">
-          <Button variant="ghost" size="icon" className="text-slate-200 hover:bg-white/10 hover:text-white lg:hidden" onClick={onToggleMobile}>
+          <Button variant="ghost" size="icon" className="text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-white/10 dark:hover:text-white lg:hidden" onClick={onToggleMobile}>
             <Menu size={18} />
           </Button>
-          <Button variant="ghost" size="icon" className="hidden text-slate-200 hover:bg-white/10 hover:text-white lg:inline-flex" onClick={onToggleDesktop}>
+          <Button variant="ghost" size="icon" className="hidden text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-white/10 dark:hover:text-white lg:inline-flex" onClick={onToggleDesktop}>
             {desktopCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
           </Button>
           <div className="hidden items-center lg:flex">
@@ -126,7 +122,7 @@ export const Header = ({ desktopCollapsed, onToggleDesktop, onToggleMobile }: He
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search candidates, jobs, skills..."
               leftIcon={<Search className="h-4 w-4 text-slate-500" />}
-              className="h-10 w-[360px] max-w-[42vw] rounded-2xl border-white/15 bg-white/10 text-sm text-white placeholder:text-slate-400"
+              className="h-10 w-[360px] max-w-[42vw] rounded-2xl border-slate-200 bg-white text-sm text-slate-900 placeholder:text-slate-400 dark:border-white/15 dark:bg-white/10 dark:text-white"
             />
           </div>
           {isHr ? (
@@ -138,7 +134,7 @@ export const Header = ({ desktopCollapsed, onToggleDesktop, onToggleMobile }: He
                   router.push(`/dashboard/hr/jobs/${id}/edit`);
                 }}
               >
-                <SelectTrigger className="ml-2 h-10 w-[240px] rounded-2xl border-white/15 bg-white/10 text-slate-100">
+                <SelectTrigger className="ml-2 h-10 w-[240px] rounded-2xl border-slate-200 bg-white text-slate-800 dark:border-white/15 dark:bg-white/10 dark:text-slate-100">
                   <SelectValue placeholder="Select job" />
                 </SelectTrigger>
                 <SelectContent>
@@ -154,16 +150,16 @@ export const Header = ({ desktopCollapsed, onToggleDesktop, onToggleMobile }: He
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
-          <Button variant="ghost" size="icon" className="rounded-xl text-slate-200 hover:bg-white/10 hover:text-white" onClick={toggleTheme}>
+          <Button variant="ghost" size="icon" className="rounded-xl text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-white/10 dark:hover:text-white" onClick={toggleTheme}>
             {isDark ? <Sun size={18} /> : <Moon size={18} />}
           </Button>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="relative rounded-xl text-slate-200 hover:bg-white/10 hover:text-white">
+              <Button variant="ghost" size="icon" className="relative rounded-xl text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-white/10 dark:hover:text-white">
                 <Bell size={18} />
                 {unreadCount > 0 ? (
-                  <span className="absolute right-2 top-2 inline-flex h-2 w-2 rounded-full bg-violet-400 ring-2 ring-slate-900" />
+                  <span className="absolute right-2 top-2 inline-flex h-2 w-2 rounded-full bg-violet-400 ring-2 ring-white dark:ring-slate-900" />
                 ) : null}
               </Button>
             </DropdownMenuTrigger>
@@ -198,20 +194,20 @@ export const Header = ({ desktopCollapsed, onToggleDesktop, onToggleMobile }: He
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <div className="h-8 w-px bg-white/15" />
+          <div className="h-8 w-px bg-slate-200 dark:bg-white/15" />
 
           <div className="hidden text-right sm:block">
-            <p className="text-sm font-semibold text-white">{user?.name || 'Guest'}</p>
-            <p className="text-xs capitalize text-slate-300">{user?.role || 'visitor'}</p>
+            <p className="text-sm font-semibold text-slate-900 dark:text-white">{user?.name || 'Guest'}</p>
+            <p className="text-xs capitalize text-slate-500 dark:text-slate-300">{user?.role || 'visitor'}</p>
           </div>
 
           <img
             src={user?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=1f2937&color=fff`}
             alt="Profile"
-            className="h-8 w-8 rounded-full border border-white/20 object-cover sm:h-9 sm:w-9"
+            className="h-8 w-8 rounded-full border border-slate-200 object-cover dark:border-white/20 sm:h-9 sm:w-9"
           />
 
-          <Button variant="ghost" size="icon" onClick={handleLogout} title="Logout" className="rounded-xl text-slate-200 hover:bg-white/10 hover:text-rose-300">
+          <Button variant="ghost" size="icon" onClick={handleLogout} title="Logout" className="rounded-xl text-slate-600 hover:bg-slate-100 hover:text-rose-500 dark:text-slate-200 dark:hover:bg-white/10 dark:hover:text-rose-300">
             <LogOut size={17} />
           </Button>
         </div>

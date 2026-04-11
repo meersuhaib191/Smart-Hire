@@ -143,6 +143,8 @@ export async function GET(request: Request) {
         const generated = await generateMcqsFromContext({
           skills,
           count: 12,
+          jobId: String(application.job_id),
+          candidateId: String(application.id),
           jobTitle: String(job.title || ""),
           jobDescription: String(job.description || ""),
           difficultyHint: "challenging",

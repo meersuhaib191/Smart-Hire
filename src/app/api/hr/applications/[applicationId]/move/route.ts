@@ -47,6 +47,8 @@ async function ensureMcqsForJob(admin: ReturnType<typeof createSupabaseAdmin>, j
       .filter(Boolean);
   const generated = await generateMcqsFromContext({
     skills,
+    jobId,
+    candidateId: applicationId,
     count: Math.max(8, 12 - Number(count || 0)),
     jobTitle: String(job.title || ""),
     jobDescription: String(job.description || ""),

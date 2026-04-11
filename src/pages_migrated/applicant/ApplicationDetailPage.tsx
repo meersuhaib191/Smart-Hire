@@ -3,9 +3,8 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { CheckCircle, Circle, Clock, XCircle, ArrowRight, FileText, Code, Video, BrainCircuit } from 'lucide-react';
+import { CheckCircle, Clock, FileText, Code, Video, BrainCircuit } from 'lucide-react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
 
 const stages = [
   { id: 1, name: 'Resume Screening', status: 'completed', score: 92, icon: FileText },
@@ -16,17 +15,15 @@ const stages = [
 ];
 
 export const ApplicationDetailPage = () => {
-  const { id } = useParams();
-
   return (
     <div className="space-y-8 max-w-5xl mx-auto">
       <div className="flex items-center justify-between">
         <div>
-          <Link href="/dashboard/applicant/applications" className="text-sm text-slate-500 hover:text-indigo-600 mb-2 inline-block">
+          <Link href="/dashboard/applicant/applications" className="mb-2 inline-block text-sm text-slate-500 hover:text-indigo-600 dark:text-slate-300 dark:hover:text-indigo-300">
             &larr; Back to Applications
           </Link>
-          <h1 className="text-3xl font-bold text-slate-900">Senior Frontend Engineer</h1>
-          <p className="text-slate-500">TechCorp Inc. • Remote • $120k - $150k</p>
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">Senior Frontend Engineer</h1>
+          <p className="text-slate-500 dark:text-slate-300">TechCorp Inc. • Remote • $120k - $150k</p>
         </div>
         <Badge variant="primary" className="text-base px-3 py-1">In Progress</Badge>
       </div>
@@ -35,10 +32,9 @@ export const ApplicationDetailPage = () => {
       <div className="relative">
         <div className="absolute top-1/2 left-0 w-full h-1 bg-slate-200 -z-10 transform -translate-y-1/2"></div>
         <div className="flex justify-between w-full">
-          {stages.map((stage, index) => {
+          {stages.map((stage) => {
             const isCompleted = stage.status === 'completed';
             const isCurrent = stage.status === 'current';
-            const isLocked = stage.status === 'locked';
             const Icon = stage.icon;
             
             return (
@@ -68,10 +64,10 @@ export const ApplicationDetailPage = () => {
       </div>
 
       {/* Current Action */}
-      <Card className="border-indigo-100 bg-indigo-50/50">
+      <Card className="border-indigo-100 bg-indigo-50/50 dark:border-indigo-500/40 dark:bg-indigo-500/15">
         <CardHeader>
-          <CardTitle className="text-indigo-900">Current Stage: Coding Challenge</CardTitle>
-          <CardDescription className="text-indigo-700">
+          <CardTitle className="text-indigo-900 dark:text-indigo-200">Current Stage: Coding Challenge</CardTitle>
+          <CardDescription className="text-indigo-700 dark:text-indigo-300">
             You have been invited to take the coding assessment. This will take approximately 60 minutes.
           </CardDescription>
         </CardHeader>
@@ -82,7 +78,7 @@ export const ApplicationDetailPage = () => {
                 Start Challenge
               </Button>
             </Link>
-            <div className="text-sm text-slate-500 flex items-center gap-2">
+            <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-300">
               <Clock size={16} />
               Expires in 2 days
             </div>
@@ -98,14 +94,14 @@ export const ApplicationDetailPage = () => {
           <CardContent>
             <div className="space-y-4">
               <div className="flex justify-between items-center">
-                <span className="text-slate-600">Overall Match</span>
+                <span className="text-slate-600 dark:text-slate-300">Overall Match</span>
                 <span className="font-bold text-green-600">92%</span>
               </div>
-              <div className="w-full bg-slate-100 rounded-full h-2">
+              <div className="h-2 w-full rounded-full bg-slate-100 dark:bg-slate-800">
                 <div className="bg-green-500 h-2 rounded-full" style={{ width: '92%' }}></div>
               </div>
               
-              <div className="pt-4 border-t border-slate-100">
+              <div className="border-t border-slate-100 pt-4 dark:border-slate-700">
                 <h4 className="font-medium mb-2">Key Skills Detected</h4>
                 <div className="flex flex-wrap gap-2">
                   {['React', 'TypeScript', 'Tailwind', 'Node.js', 'Redux'].map(skill => (
@@ -133,8 +129,8 @@ export const ApplicationDetailPage = () => {
               ].map((item, i) => (
                 <div key={i} className="relative mb-6 last:mb-0">
                   <div className={`absolute -left-[31px] top-1 w-3 h-3 rounded-full border-2 border-white ${item.type === 'success' ? 'bg-green-500' : 'bg-indigo-500'}`}></div>
-                  <p className="text-sm font-medium text-slate-900">{item.event}</p>
-                  <p className="text-xs text-slate-500">{item.date}</p>
+                  <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{item.event}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-300">{item.date}</p>
                 </div>
               ))}
             </div>

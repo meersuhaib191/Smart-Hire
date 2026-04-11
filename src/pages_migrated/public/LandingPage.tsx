@@ -2,7 +2,7 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import { Button } from '@/components/ui/Button';
-import { BrainCircuit, CheckCircle, Code, Users, BarChart } from 'lucide-react';
+import { BrainCircuit, Code, Users, BarChart } from 'lucide-react';
 import Link from 'next/link';
 import { useStore } from '@/store/useStore';
 
@@ -14,7 +14,7 @@ export const LandingPage = () => {
   const getStartedHref = isSignedIn ? dashboardHref : '/login';
 
   return (
-    <div className="bg-white">
+    <div className="bg-white dark:bg-slate-950">
       {/* Hero Section */}
       <section className="relative overflow-hidden pt-20 pb-32 lg:pt-32 lg:pb-40">
         <div className="container mx-auto px-4 text-center">
@@ -26,11 +26,11 @@ export const LandingPage = () => {
             <span className="inline-block px-4 py-1.5 mb-6 text-sm font-semibold tracking-wider text-indigo-600 uppercase bg-indigo-50 rounded-full">
               The Future of Hiring
             </span>
-            <h1 className="text-4xl font-extrabold tracking-tight text-slate-900 sm:text-6xl mb-6">
+            <h1 className="text-4xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100 sm:text-6xl mb-6">
               The Intelligent <br />
               <span className="text-indigo-600">Hiring Operating System</span>
             </h1>
-            <p className="max-w-2xl mx-auto text-xl text-slate-500 mb-10">
+            <p className="max-w-2xl mx-auto text-xl text-slate-500 dark:text-slate-300 mb-10">
               Automate screening, coding tests, and interviews with AI. 
               Rank candidates by skill, not keywords.
             </p>
@@ -47,14 +47,14 @@ export const LandingPage = () => {
       </section>
 
       {/* Features Section */}
-      <section className="py-24 bg-slate-50">
+      <section className="py-24 bg-slate-50 dark:bg-slate-900/40">
         <div className="container mx-auto px-4">
           <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold text-slate-900 sm:text-4xl">
+            <h2 className="text-3xl font-bold text-slate-900 dark:text-slate-100 sm:text-4xl">
               Everything you need to hire the best
             </h2>
-            <p className="mt-4 text-lg text-slate-600">
-              From application to offer letter, we've got you covered.
+            <p className="mt-4 text-lg text-slate-600 dark:text-slate-300">
+              From application to offer letter, we&apos;ve got you covered.
             </p>
           </div>
 
@@ -83,7 +83,7 @@ export const LandingPage = () => {
             ].map((feature, index) => (
               <motion.div
                 key={index}
-                className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow"
+                className="rounded-2xl border border-slate-100 bg-white p-8 shadow-sm transition-shadow hover:shadow-md dark:border-slate-700 dark:bg-slate-900/70"
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
@@ -92,8 +92,8 @@ export const LandingPage = () => {
                 <div className="bg-indigo-50 w-16 h-16 rounded-xl flex items-center justify-center mb-6">
                   {feature.icon}
                 </div>
-                <h3 className="text-xl font-semibold text-slate-900 mb-3">{feature.title}</h3>
-                <p className="text-slate-600 leading-relaxed">
+                <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-3">{feature.title}</h3>
+                <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
                   {feature.description}
                 </p>
               </motion.div>
@@ -107,7 +107,7 @@ export const LandingPage = () => {
         <div className="container mx-auto px-4">
           <div className="flex flex-col lg:flex-row items-center gap-16">
             <div className="lg:w-1/2">
-              <h2 className="text-3xl font-bold text-slate-900 sm:text-4xl mb-6">
+              <h2 className="text-3xl font-bold text-slate-900 dark:text-slate-100 sm:text-4xl mb-6">
                 Streamline your hiring pipeline
               </h2>
               <div className="space-y-8">
@@ -121,18 +121,18 @@ export const LandingPage = () => {
                     <div className="flex-shrink-0 w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold">
                       {i + 1}
                     </div>
-                    <p className="text-lg text-slate-700 pt-0.5">{step}</p>
+                    <p className="text-lg text-slate-700 dark:text-slate-300 pt-0.5">{step}</p>
                   </div>
                 ))}
               </div>
             </div>
             <div className="lg:w-1/2 relative">
               <div className="absolute inset-0 bg-indigo-600 rounded-3xl rotate-3 opacity-10 transform scale-105"></div>
-              <div className="relative bg-white border border-slate-200 rounded-2xl shadow-xl p-6">
+              <div className="relative rounded-2xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-700 dark:bg-slate-900/70">
                 {/* Mock UI of Pipeline */}
                 <div className="space-y-4">
-                  <div className="flex justify-between items-center border-b border-slate-100 pb-4">
-                    <div className="font-semibold text-slate-900">Senior React Developer</div>
+                  <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-700 pb-4">
+                    <div className="font-semibold text-slate-900 dark:text-slate-100">Senior React Developer</div>
                     <span className="text-green-600 text-sm font-medium bg-green-50 px-2 py-1 rounded">Active</span>
                   </div>
                   <div className="flex gap-2 overflow-x-auto pb-2">

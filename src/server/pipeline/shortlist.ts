@@ -90,6 +90,7 @@ async function ensureAdvancedMcqPool(admin: ReturnType<typeof createSupabaseAdmi
       .filter(Boolean);
   const generated = await generateMcqsFromContext({
     skills,
+    jobId: job.id,
     count: Math.max(10, minimum - Number(count || 0)),
     jobTitle: String(job.title || ""),
     jobDescription: String(job.description || ""),

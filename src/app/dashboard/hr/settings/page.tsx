@@ -31,7 +31,7 @@ export default function HrSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-3xl border border-white/40 bg-white/80 p-6 shadow-xl backdrop-blur dark:border-white/10 dark:bg-slate-900/70">
+      <div className="app-card p-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h1 className="text-3xl font-semibold tracking-tight text-slate-900 dark:text-white">Professional Profile</h1>
