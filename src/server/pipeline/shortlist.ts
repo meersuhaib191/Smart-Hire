@@ -191,6 +191,15 @@ export async function runDeadlineShortlistForJob(
       }
     }
 
+    const missingAtsIds = applications
+      .map((a) => a.id)
+      .filter((id) => !scoreMap.has(id));
+    if (missingAtsIds.length > 0) {
+      throw new Error(
+        `ATS scoring incomplete: scored ${applications.length - missingAtsIds.length}/${applications.length} applications.`
+      );
+    }
+
     const ranked = [...applications].sort((a, b) => {
       const diff = (scoreMap.get(b.id) || 0) - (scoreMap.get(a.id) || 0);
       if (Math.abs(diff) > 0.0001) return diff;

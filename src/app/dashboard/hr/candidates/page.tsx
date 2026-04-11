@@ -74,8 +74,8 @@ export default function HrCandidatesPage() {
         const ra = a.rankPosition ?? Number.MAX_SAFE_INTEGER;
         const rb = b.rankPosition ?? Number.MAX_SAFE_INTEGER;
         if (ra !== rb) return ra - rb;
-        const bScore = b.finalScore ?? b.atsScore ?? 0;
-        const aScore = a.finalScore ?? a.atsScore ?? 0;
+        const bScore = b.atsScore ?? 0;
+        const aScore = a.atsScore ?? 0;
         return bScore - aScore;
       }),
     [candidates]
@@ -136,8 +136,6 @@ export default function HrCandidatesPage() {
               </div>
               <p className="mt-1 text-sm text-slate-500">
                 ATS score: {candidate.atsScore == null ? "-" : Number(candidate.atsScore).toFixed(2)}
-                {" · "}Ranking score:{" "}
-                {candidate.finalScore == null ? "-" : Number(candidate.finalScore).toFixed(2)}
               </p>
             </div>
           ))}
