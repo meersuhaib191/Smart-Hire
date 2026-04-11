@@ -15,6 +15,7 @@ import {
 import { Badge } from '@/components/ui/Badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { motion } from 'motion/react';
+import { useTheme } from 'next-themes';
 
 type HeaderProps = {
   desktopCollapsed: boolean;
@@ -27,7 +28,6 @@ export const Header = ({ desktopCollapsed, onToggleDesktop, onToggleMobile }: He
   const router = useRouter();
   const isHr = user?.role === 'hr';
   const isApplicant = user?.role === 'applicant';
-  const [isDark, setIsDark] = useState(false);
   const [search, setSearch] = useState('');
   const [jobs, setJobs] = useState<Array<{ id: string; title: string }>>([]);
   const [selectedJobId, setSelectedJobId] = useState('');
@@ -42,6 +42,8 @@ export const Header = ({ desktopCollapsed, onToggleDesktop, onToggleMobile }: He
     created_at: string;
     }>
   >([]);
+  const { resolvedTheme, setTheme } = useTheme();
+  const isDark = resolvedTheme === 'dark';
 
   const formatWhen = (iso: string) => {
     const then = new Date(iso).getTime();
@@ -55,18 +57,8 @@ export const Header = ({ desktopCollapsed, onToggleDesktop, onToggleMobile }: He
     return `${days}d ago`;
   };
 
-  useEffect(() => {
-    const saved = localStorage.getItem('smarthire-theme');
-    const nextDark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
-    setIsDark(nextDark);
-    document.documentElement.classList.toggle('dark', nextDark);
-  }, []);
-
   const toggleTheme = () => {
-    const next = !isDark;
-    setIsDark(next);
-    document.documentElement.classList.toggle('dark', next);
-    localStorage.setItem('smarthire-theme', next ? 'dark' : 'light');
+    setTheme(isDark ? 'light' : 'dark');
   };
 
   const loadNotifications = async () => {
