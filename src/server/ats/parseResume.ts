@@ -13,10 +13,23 @@ export async function extractResumeText(file: File): Promise<string> {
 
   if (mimeType.includes("pdf") || file.name.toLowerCase().endsWith(".pdf")) {
     const pdfModule = await import("pdf-parse");
-    const pdf =
+    const legacyParser =
       (pdfModule as unknown as { default?: (input: Buffer) => Promise<{ text?: string }> }).default ??
-      (pdfModule as unknown as (input: Buffer) => Promise<{ text?: string }>);
-    const parsed = await pdf(bytes);
+      (pdfModule as unknown as ((input: Buffer) => Promise<{ text?: string }>) | Record<string, never>);
+
+    if (typeof legacyParser === "function") {
+      const parsed = await legacyParser(bytes);
+      return normalizeText(parsed.text || "");
+    }
+
+    const ModernPdfParse = (pdfModule as unknown as { PDFParse?: new (opts: { data: Buffer }) => { getText: () => Promise<{ text?: string }>; destroy?: () => Promise<void> | void } }).PDFParse;
+    if (!ModernPdfParse) {
+      throw new Error("Unable to parse PDF resume: unsupported pdf-parse module shape.");
+    }
+
+    const parser = new ModernPdfParse({ data: bytes });
+    const parsed = await parser.getText();
+    await parser.destroy?.();
     return normalizeText(parsed.text || "");
   }
 

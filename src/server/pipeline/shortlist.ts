@@ -21,6 +21,9 @@ const isMissingRoundControlsTable = (message?: string) =>
   (message || "").includes("Could not find the table 'application_round_controls'") ||
   (message || "").includes("Could not find the table 'public.application_round_controls'");
 
+const isMissingRoundControlsConflictConstraint = (message?: string) =>
+  (message || "").includes("no unique or exclusion constraint matching the ON CONFLICT specification");
+
 type JobShortlistRow = {
   id: string;
   title: string;
@@ -257,7 +260,21 @@ export async function runDeadlineShortlistForJob(
       const { error: controlsError } = await admin
         .from("application_round_controls")
         .upsert(controls, { onConflict: "application_id,stage_type" });
-      if (controlsError && !isMissingRoundControlsTable(controlsError.message)) {
+      if (controlsError && isMissingRoundControlsConflictConstraint(controlsError.message)) {
+        // Backward-compatible path for schemas without the expected composite unique constraint.
+        const removeExisting = await admin
+          .from("application_round_controls")
+          .delete()
+          .in("application_id", selectedIds)
+          .eq("stage_type", "MCQ");
+        if (removeExisting.error && !isMissingRoundControlsTable(removeExisting.error.message)) {
+          throw new Error(removeExisting.error.message);
+        }
+        const insertFallback = await admin.from("application_round_controls").insert(controls);
+        if (insertFallback.error && !isMissingRoundControlsTable(insertFallback.error.message)) {
+          throw new Error(insertFallback.error.message);
+        }
+      } else if (controlsError && !isMissingRoundControlsTable(controlsError.message)) {
         throw new Error(controlsError.message);
       }
     }
