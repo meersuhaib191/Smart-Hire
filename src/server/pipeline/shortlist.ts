@@ -11,6 +11,10 @@ const missingPipelineStepColumn = (message?: string) =>
   (message || "").includes("column applications.pipeline_step does not exist") ||
   (message || "").includes('column "pipeline_step" does not exist');
 
+const pipelineStepConstraintViolation = (message?: string) =>
+  (message || "").includes("applications_pipeline_step_check") ||
+  (message || "").includes("violates check constraint");
+
 const isMissingRoundControlsTable = (message?: string) =>
   (message || "").includes("relation \"application_round_controls\" does not exist") ||
   (message || "").includes("relation \"public.application_round_controls\" does not exist") ||
@@ -204,7 +208,10 @@ export async function runDeadlineShortlistForJob(
           current_stage: "SCREENING",
         })
         .in("id", selectedIds);
-      if (missingPipelineStepColumn(updateSelectedError?.message)) {
+      if (
+        missingPipelineStepColumn(updateSelectedError?.message) ||
+        pipelineStepConstraintViolation(updateSelectedError?.message)
+      ) {
         const fallback = await admin
           .from("applications")
           .update({ current_stage: "SCREENING" })
@@ -223,7 +230,10 @@ export async function runDeadlineShortlistForJob(
           current_stage: "REJECTED",
         })
         .in("id", rejectedIds);
-      if (missingPipelineStepColumn(rejectErr?.message)) {
+      if (
+        missingPipelineStepColumn(rejectErr?.message) ||
+        pipelineStepConstraintViolation(rejectErr?.message)
+      ) {
         const fallback = await admin
           .from("applications")
           .update({ current_stage: "REJECTED" })
