@@ -22,6 +22,7 @@ export const JobCreationForm = () => {
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
     const [experienceRequired, setExperienceRequired] = useState(0);
+    const [submissionDeadlineAt, setSubmissionDeadlineAt] = useState("");
     const [skills, setSkills] = useState<string[]>([]);
     const [currentSkill, setCurrentSkill] = useState("");
     const [atsWeight, setAtsWeight] = useState(1);
@@ -56,6 +57,13 @@ export const JobCreationForm = () => {
                 toast.error("Description must be at least 10 characters.");
                 return false;
             }
+            if (submissionDeadlineAt) {
+                const ts = new Date(submissionDeadlineAt).getTime();
+                if (Number.isNaN(ts) || ts <= Date.now()) {
+                    toast.error("Submission deadline must be a future date and time.");
+                    return false;
+                }
+            }
         }
         if (step === 2 && skills.length === 0) {
             toast.error("Add at least one required skill.");
@@ -85,6 +93,7 @@ export const JobCreationForm = () => {
                 title,
                 description,
                 experience_required: Number(experienceRequired || 0),
+                submission_deadline_at: submissionDeadlineAt ? new Date(submissionDeadlineAt).toISOString() : undefined,
                 skills,
                 weights: {
                     ats_weight: Number(atsWeight),
@@ -151,6 +160,17 @@ export const JobCreationForm = () => {
                                     onChange={(e) => setExperienceRequired(Number(e.target.value || 0))}
                                     min="0"
                                 />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Application Submission Deadline</Label>
+                                <Input
+                                    type="datetime-local"
+                                    value={submissionDeadlineAt}
+                                    onChange={(e) => setSubmissionDeadlineAt(e.target.value)}
+                                />
+                                <p className="text-xs text-slate-500">
+                                    ATS shortlist runs automatically after this deadline.
+                                </p>
                             </div>
                         </div>
                     ) : null}
@@ -250,6 +270,10 @@ export const JobCreationForm = () => {
                                     </div>
                                     <div className="grid gap-2 text-sm md:grid-cols-2">
                                         <p><span className="font-medium">Experience:</span> {experienceRequired} years</p>
+                                        <p>
+                                            <span className="font-medium">Deadline:</span>{" "}
+                                            {submissionDeadlineAt ? new Date(submissionDeadlineAt).toLocaleString() : "Not set"}
+                                        </p>
                                         <p><span className="font-medium">ATS:</span> {atsWeight}</p>
                                         <p><span className="font-medium">MCQ:</span> {mcqWeight}</p>
                                         <p><span className="font-medium">Coding:</span> {codingWeight}</p>

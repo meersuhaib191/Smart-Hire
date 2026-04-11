@@ -8,6 +8,7 @@ type CreateJobBody = {
   title: string;
   description: string;
   experience_required: number;
+  submission_deadline_at?: string;
   company_id?: string;
   skills: string[];
   weights: {
@@ -23,6 +24,14 @@ const isMissingCreatedByColumn = (message?: string) =>
   (message || "").includes("Could not find the 'created_by_user_id' column") ||
   (message || "").includes("column jobs.created_by_user_id does not exist") ||
   (message || "").includes('column "created_by_user_id" does not exist');
+const isMissingShortlistColumns = (message?: string) =>
+  (message || "").includes("column jobs.submission_deadline_at does not exist") ||
+  (message || "").includes("column jobs.shortlist_status does not exist") ||
+  (message || "").includes("column jobs.shortlist_ran_at does not exist") ||
+  (message || "").includes("column jobs.shortlist_selected_count does not exist") ||
+  (message || "").includes("column jobs.shortlist_total_submissions does not exist");
+const isMissingDeadlineColumn = (message?: string) =>
+  (message || "").includes("column jobs.submission_deadline_at does not exist");
 
 async function resolveCompanyId(
   admin: ReturnType<typeof createSupabaseAdmin>,
@@ -98,19 +107,25 @@ export async function GET() {
     requireHr(user);
 
     const admin = createSupabaseAdmin();
-    let query = admin
+    const withShortlistFields =
+      "id, title, company_id, status, created_at, submission_deadline_at, shortlist_status, shortlist_ran_at, shortlist_selected_count, shortlist_total_submissions, applications(id)";
+    const withoutShortlistFields = "id, title, company_id, status, created_at, applications(id)";
+
+    const query = admin
       .from("jobs")
-      .select("id, title, company_id, status, created_at, applications(id)")
+      .select(withShortlistFields)
       .order("created_at", { ascending: false })
       .limit(100)
       .eq("created_by_user_id", user.id);
-    let { data, error } = await query;
+    const initial = await query;
+    let data: unknown = initial.data;
+    let error = initial.error;
 
     if (isMissingCreatedByColumn(error?.message)) {
       const companyId = await findCompanyIdByHint(admin, user);
       let fallbackQuery = admin
         .from("jobs")
-        .select("id, title, company_id, status, created_at, applications(id)")
+        .select(withShortlistFields)
         .order("created_at", { ascending: false })
         .limit(100);
       if (companyId) {
@@ -122,12 +137,25 @@ export async function GET() {
       data = fallback.data;
       error = fallback.error;
     }
+    if (isMissingShortlistColumns(error?.message)) {
+      let fallbackQuery = admin
+        .from("jobs")
+        .select(withoutShortlistFields)
+        .order("created_at", { ascending: false })
+        .limit(100);
+      if (!isMissingCreatedByColumn(error?.message)) {
+        fallbackQuery = fallbackQuery.eq("created_by_user_id", user.id);
+      }
+      const fallback = await fallbackQuery;
+      data = fallback.data;
+      error = fallback.error;
+    }
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ jobs: data || [] });
+    return NextResponse.json({ jobs: (data as unknown[]) || [] });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to load jobs.";
     const status =
@@ -147,6 +175,14 @@ export async function POST(request: Request) {
     }
 
     const skills = body.skills || [];
+    const submissionDeadlineAtRaw = String(body.submission_deadline_at || "").trim();
+    const submissionDeadlineAt =
+      submissionDeadlineAtRaw && !Number.isNaN(new Date(submissionDeadlineAtRaw).getTime())
+        ? new Date(submissionDeadlineAtRaw).toISOString()
+        : null;
+    if (submissionDeadlineAtRaw && !submissionDeadlineAt) {
+      return NextResponse.json({ error: "submission_deadline_at must be a valid date-time." }, { status: 400 });
+    }
     const weights = body.weights || {
       ats_weight: 1,
       mcq_weight: 0,
@@ -168,18 +204,36 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: companyError || "Company is required." }, { status: 400 });
     }
 
-    const { data: job, error: jobError } = await admin
+    let { data: job, error: jobError } = await admin
       .from("jobs")
       .insert({
         title: body.title,
         description: body.description,
         experience_required: body.experience_required || 0,
+        submission_deadline_at: submissionDeadlineAt,
         company_id: companyId,
         created_by_user_id: user.id,
         status: "PUBLISHED",
+        shortlist_status: "pending",
       })
       .select("id, title")
       .single();
+    if (isMissingShortlistColumns(jobError?.message) || isMissingDeadlineColumn(jobError?.message)) {
+      const retry = await admin
+        .from("jobs")
+        .insert({
+          title: body.title,
+          description: body.description,
+          experience_required: body.experience_required || 0,
+          company_id: companyId,
+          created_by_user_id: user.id,
+          status: "PUBLISHED",
+        })
+        .select("id, title")
+        .single();
+      job = retry.data as typeof job;
+      jobError = retry.error as typeof jobError;
+    }
 
     if (isMissingCreatedByColumn(jobError?.message)) {
       const fallback = await admin
@@ -188,8 +242,10 @@ export async function POST(request: Request) {
           title: body.title,
           description: body.description,
           experience_required: body.experience_required || 0,
+          submission_deadline_at: submissionDeadlineAt,
           company_id: companyId,
           status: "PUBLISHED",
+          shortlist_status: "pending",
         })
         .select("id, title")
         .single();

@@ -23,7 +23,22 @@ type JobRow = {
   id: string;
   title: string;
   status?: string;
+  submission_deadline_at?: string | null;
+  shortlist_status?: string | null;
+  shortlist_ran_at?: string | null;
+  shortlist_selected_count?: number;
+  shortlist_total_submissions?: number;
   applicantCount: number;
+};
+
+type ShortlistMeta = {
+  id: string;
+  title: string;
+  submissionDeadlineAt: string | null;
+  shortlistStatus: string | null;
+  shortlistRanAt: string | null;
+  shortlistSelectedCount: number;
+  shortlistTotalSubmissions: number;
 };
 
 export default function ApplicantsDashboard() {
@@ -36,6 +51,7 @@ export default function ApplicantsDashboard() {
   const [actionMessage, setActionMessage] = useState("");
   const [actionLoading, setActionLoading] = useState<null | "ats" | "advance" | "move">(null);
   const [activity, setActivity] = useState<Array<{ at: string; message: string }>>([]);
+  const [shortlistMeta, setShortlistMeta] = useState<ShortlistMeta | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -47,11 +63,21 @@ export default function ApplicantsDashboard() {
             id: string;
             title: string;
             status?: string;
+            submission_deadline_at?: string | null;
+            shortlist_status?: string | null;
+            shortlist_ran_at?: string | null;
+            shortlist_selected_count?: number;
+            shortlist_total_submissions?: number;
             applications?: Array<{ id: string }>;
           }>).map((job) => ({
             id: job.id,
             title: job.title,
             status: job.status,
+            submission_deadline_at: job.submission_deadline_at || null,
+            shortlist_status: job.shortlist_status || null,
+            shortlist_ran_at: job.shortlist_ran_at || null,
+            shortlist_selected_count: Number(job.shortlist_selected_count || 0),
+            shortlist_total_submissions: Number(job.shortlist_total_submissions || 0),
             applicantCount: Array.isArray(job.applications) ? job.applications.length : 0,
           }));
           setJobs(normalizedJobs);
@@ -72,9 +98,11 @@ export default function ApplicantsDashboard() {
       const json = await res.json();
       if (res.ok) {
         setCandidates(json.candidates || []);
+        setShortlistMeta((json.job as ShortlistMeta | null) || null);
         setErrorMessage("");
       } else {
         setCandidates([]);
+        setShortlistMeta(null);
         setErrorMessage(json.error || "Failed to load candidate analytics.");
       }
     } finally {
@@ -142,6 +170,42 @@ export default function ApplicantsDashboard() {
       await loadCandidates(jobId);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to run ATS screening.";
+      setErrorMessage(message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const runShortlist = async () => {
+    if (!jobId) return;
+    setActionLoading("advance");
+    setActionMessage("");
+    try {
+      const res = await fetch(`/api/hr/jobs/${jobId}/run-shortlist`, { method: "POST" });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || "Failed to run shortlist.");
+      const result = (json.result || {}) as {
+        status?: string;
+        reason?: string;
+        shortlisted?: number;
+        totalApplicants?: number;
+      };
+      if (result.status === "skipped") {
+        setActionMessage(`Shortlist skipped: ${result.reason || "not_due"}.`);
+      } else {
+        setActionMessage(
+          `Shortlist completed. Selected ${Number(result.shortlisted || 0)} of ${Number(
+            result.totalApplicants || 0
+          )} applicants.`
+        );
+      }
+      setActivity((prev) => [
+        { at: new Date().toISOString(), message: "Ran ATS deadline shortlist." },
+        ...prev,
+      ].slice(0, 30));
+      await loadCandidates(jobId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to run shortlist.";
       setErrorMessage(message);
     } finally {
       setActionLoading(null);
@@ -345,8 +409,47 @@ export default function ApplicantsDashboard() {
             disabled={!jobId || actionLoading !== null || stageBuckets.CODING.length === 0}
             onConfirm={async (data) => advanceTopN("CODING", data)}
           />
+          <Button
+            variant="outline"
+            onClick={runShortlist}
+            disabled={!jobId || actionLoading !== null}
+            className="rounded-xl"
+          >
+            {actionLoading === "advance" ? "Running shortlist..." : "Run Deadline Shortlist"}
+          </Button>
         </CardContent>
       </Card>
+
+      {shortlistMeta ? (
+        <Card className="rounded-2xl border-slate-200/80 bg-white/95 shadow-sm">
+          <CardHeader>
+            <CardTitle>Deadline Shortlist Status</CardTitle>
+            <CardDescription>Automatic ATS-based top 20% selection after submission deadline.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-slate-500">Submission Deadline</p>
+              <p className="text-sm font-medium text-slate-900">
+                {shortlistMeta.submissionDeadlineAt
+                  ? new Date(shortlistMeta.submissionDeadlineAt).toLocaleString()
+                  : "Not set"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-wide text-slate-500">Shortlist Status</p>
+              <p className="text-sm font-medium text-slate-900">{shortlistMeta.shortlistStatus || "pending"}</p>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-wide text-slate-500">Selected</p>
+              <p className="text-sm font-medium text-slate-900">{shortlistMeta.shortlistSelectedCount || 0}</p>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-wide text-slate-500">Total Submissions</p>
+              <p className="text-sm font-medium text-slate-900">{shortlistMeta.shortlistTotalSubmissions || 0}</p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <div className="grid gap-4 xl:grid-cols-[1fr_320px]">
         <div className="grid gap-4 xl:grid-cols-5">

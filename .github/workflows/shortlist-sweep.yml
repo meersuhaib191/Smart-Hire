@@ -1,0 +1,30 @@
+name: Shortlist Sweep Scheduler
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  run-shortlist-sweep:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger shortlist sweep endpoint
+        env:
+          SHORTLIST_SWEEP_URL: ${{ secrets.SHORTLIST_SWEEP_URL }}
+          SHORTLIST_CRON_SECRET: ${{ secrets.SHORTLIST_CRON_SECRET }}
+        run: |
+          if [ -z "$SHORTLIST_SWEEP_URL" ]; then
+            echo "Missing SHORTLIST_SWEEP_URL GitHub secret"
+            exit 1
+          fi
+
+          if [ -z "$SHORTLIST_CRON_SECRET" ]; then
+            echo "Missing SHORTLIST_CRON_SECRET GitHub secret"
+            exit 1
+          fi
+
+          curl --fail --show-error --silent \
+            -X POST "$SHORTLIST_SWEEP_URL" \
+            -H "x-shortlist-secret: $SHORTLIST_CRON_SECRET" \
+            -H "content-type: application/json"

@@ -1,9 +1,8 @@
-import { supabase } from '@/utils/supabase/client';
-
 export interface JobInput {
     title: string;
     description: string;
     experience_required: number;
+    submission_deadline_at?: string;
     skills: string[];
     weights: {
         ats_weight: number;
@@ -21,6 +20,7 @@ export const createJob = async (jobInput: JobInput, companyId: string) => {
             title: jobInput.title,
             description: jobInput.description,
             experience_required: jobInput.experience_required,
+            submission_deadline_at: jobInput.submission_deadline_at,
             company_id: companyId,
             skills: jobInput.skills,
             weights: jobInput.weights,

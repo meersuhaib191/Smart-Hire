@@ -6,7 +6,7 @@ export async function GET() {
     const admin = createSupabaseAdmin();
     const { data, error } = await admin
       .from("jobs")
-      .select("id, title, description, created_at, status, companies(name), job_skills(skill_name)")
+      .select("id, title, description, created_at, status, submission_deadline_at, companies(name), job_skills(skill_name)")
       .eq("status", "PUBLISHED")
       .order("created_at", { ascending: false })
       .limit(100);
@@ -20,6 +20,7 @@ export async function GET() {
       title: string;
       description: string;
       created_at: string;
+      submission_deadline_at?: string | null;
       companies?: { name?: string | null } | null;
       job_skills?: Array<{ skill_name: string }> | null;
     };
@@ -29,6 +30,7 @@ export async function GET() {
       title: job.title || "Untitled job",
       description: job.description || "",
       created_at: job.created_at,
+      submission_deadline_at: job.submission_deadline_at || null,
       company: job.companies?.name || "Company",
       skills: (job.job_skills || []).map((s: { skill_name: string }) => s.skill_name).filter(Boolean),
     }));

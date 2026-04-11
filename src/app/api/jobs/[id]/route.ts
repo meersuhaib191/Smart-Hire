@@ -11,7 +11,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const admin = createSupabaseAdmin();
     const { data, error } = await admin
       .from("jobs")
-      .select("id, title, description, created_at, status, companies(name), job_skills(skill_name)")
+      .select("id, title, description, created_at, status, submission_deadline_at, companies(name), job_skills(skill_name)")
       .eq("id", id)
       .maybeSingle();
 
@@ -28,6 +28,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       description: (data.description as string) || "",
       created_at: data.created_at as string,
       status: data.status as string,
+      submission_deadline_at: (data.submission_deadline_at as string | null) || null,
       company: (data.companies as { name?: string | null } | null)?.name || "Company",
       skills: ((data.job_skills as Array<{ skill_name: string }> | null) || [])
         .map((s) => s.skill_name)

@@ -9,6 +9,13 @@ export async function GET(_request: Request, context: { params: Promise<{ jobId:
     const { jobId } = await context.params;
 
     const admin = createSupabaseAdmin();
+    const { data: jobMeta } = await admin
+      .from("jobs")
+      .select(
+        "id, title, submission_deadline_at, shortlist_status, shortlist_ran_at, shortlist_selected_count, shortlist_total_submissions"
+      )
+      .eq("id", jobId)
+      .maybeSingle();
     let { data: apps, error: appsError } = await admin
       .from("applications")
       .select("id, user_id, pipeline_step")
@@ -38,7 +45,25 @@ export async function GET(_request: Request, context: { params: Promise<{ jobId:
     }
 
     if (!apps?.length) {
-      return NextResponse.json({ jobId, candidates: [] });
+      return NextResponse.json({
+        jobId,
+        job: jobMeta
+          ? {
+              id: jobMeta.id,
+              title: jobMeta.title,
+              submissionDeadlineAt: (jobMeta as { submission_deadline_at?: string | null }).submission_deadline_at || null,
+              shortlistStatus: (jobMeta as { shortlist_status?: string | null }).shortlist_status || null,
+              shortlistRanAt: (jobMeta as { shortlist_ran_at?: string | null }).shortlist_ran_at || null,
+              shortlistSelectedCount: Number(
+                (jobMeta as { shortlist_selected_count?: number | null }).shortlist_selected_count || 0
+              ),
+              shortlistTotalSubmissions: Number(
+                (jobMeta as { shortlist_total_submissions?: number | null }).shortlist_total_submissions || 0
+              ),
+            }
+          : null,
+        candidates: [],
+      });
     }
 
     const userIds = [...new Set((apps || []).map((a) => a.user_id))];
@@ -91,7 +116,25 @@ export async function GET(_request: Request, context: { params: Promise<{ jobId:
       }
     }
 
-    return NextResponse.json({ jobId, candidates });
+    return NextResponse.json({
+      jobId,
+      job: jobMeta
+        ? {
+            id: jobMeta.id,
+            title: jobMeta.title,
+            submissionDeadlineAt: (jobMeta as { submission_deadline_at?: string | null }).submission_deadline_at || null,
+            shortlistStatus: (jobMeta as { shortlist_status?: string | null }).shortlist_status || null,
+            shortlistRanAt: (jobMeta as { shortlist_ran_at?: string | null }).shortlist_ran_at || null,
+            shortlistSelectedCount: Number(
+              (jobMeta as { shortlist_selected_count?: number | null }).shortlist_selected_count || 0
+            ),
+            shortlistTotalSubmissions: Number(
+              (jobMeta as { shortlist_total_submissions?: number | null }).shortlist_total_submissions || 0
+            ),
+          }
+        : null,
+      candidates,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to load analytics.";
     const status =

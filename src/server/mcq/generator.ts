@@ -27,15 +27,29 @@ const parseQuestions = (raw: string, expectedCount: number): McqQuestionInput[] 
   const parsed = JSON.parse(raw) as unknown;
   if (!Array.isArray(parsed)) throw new Error("Invalid MCQ JSON shape.");
   const valid = parsed
-    .filter((q: any) => q?.questionText && Array.isArray(q?.options) && Number.isInteger(q?.correctOption))
+    .filter((q: unknown) => {
+      if (!q || typeof q !== "object") return false;
+      const candidate = q as { questionText?: unknown; options?: unknown; correctOption?: unknown };
+      return Boolean(candidate.questionText) && Array.isArray(candidate.options) && Number.isInteger(candidate.correctOption);
+    })
     .map(
-      (q: any): McqQuestionInput => ({
-        questionText: String(q.questionText),
-        options: q.options.slice(0, 4).map((o: unknown) => String(o)),
-        correctOption: Number(q.correctOption),
-        skillTag: q.skillTag ? String(q.skillTag) : undefined,
-        difficulty: q.difficulty === "easy" || q.difficulty === "hard" ? q.difficulty : "medium",
-      })
+      (q: unknown): McqQuestionInput => {
+        const candidate = q as {
+          questionText?: unknown;
+          options?: unknown[];
+          correctOption?: unknown;
+          skillTag?: unknown;
+          difficulty?: unknown;
+        };
+        return {
+          questionText: String(candidate.questionText),
+          options: (candidate.options || []).slice(0, 4).map((o: unknown) => String(o)),
+          correctOption: Number(candidate.correctOption),
+          skillTag: candidate.skillTag ? String(candidate.skillTag) : undefined,
+          difficulty:
+            candidate.difficulty === "easy" || candidate.difficulty === "hard" ? candidate.difficulty : "medium",
+        };
+      }
     )
     .filter((q) => q.options.length === 4 && q.correctOption >= 0 && q.correctOption <= 3);
 
@@ -63,7 +77,7 @@ export async function generateMcqsFromContext(input: {
 
   const difficultyInstruction =
     input.difficultyHint === "challenging"
-      ? "Questions must be moderately difficult to difficult, scenario-based, and avoid obvious answers."
+      ? "Questions must be advanced-level, scenario-driven, and require applied reasoning. Avoid definition-only or trivial elimination questions."
       : "Use a balanced difficulty mix of medium and hard.";
   const jobContext = [input.jobTitle ? `Job Title: ${input.jobTitle}` : "", input.jobDescription ? `Job Description: ${input.jobDescription}` : ""]
     .filter(Boolean)
@@ -73,6 +87,7 @@ export async function generateMcqsFromContext(input: {
 ${jobContext ? `${jobContext}\n` : ""}Skills: ${skills.join(", ")}
 ${difficultyInstruction}
 At least 70% questions should require applied reasoning rather than definitions.
+At least 40% questions should involve debugging, trade-off analysis, or real-world constraints.
 Return ONLY JSON array: [{questionText, options(4), correctOption(0-3), skillTag, difficulty}].`;
 
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -92,8 +107,10 @@ Return ONLY JSON array: [{questionText, options(4), correctOption(0-3), skillTag
     return fallbackQuestions(skills, count);
   }
 
-  const json = (await response.json()) as any;
-  const content = json?.choices?.[0]?.message?.content;
+  const json = (await response.json()) as {
+    choices?: Array<{ message?: { content?: string } }>;
+  };
+  const content = json.choices?.[0]?.message?.content;
   if (!content) return fallbackQuestions(skills, count);
 
   try {

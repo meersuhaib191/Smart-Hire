@@ -39,7 +39,7 @@ export async function POST(request: Request) {
 
         const { data: jobRow, error: jobLookupError } = await supabase
             .from('jobs')
-            .select('id')
+            .select('id, status, submission_deadline_at')
             .eq('id', jobId)
             .maybeSingle();
 
@@ -48,6 +48,20 @@ export async function POST(request: Request) {
                 { error: "Job not found.", details: jobLookupError?.message },
                 { status: 404 }
             );
+        }
+        const isPublished = String((jobRow as { status?: string | null }).status || "").toUpperCase() === "PUBLISHED";
+        if (!isPublished) {
+            return NextResponse.json({ error: "This job is not accepting applications." }, { status: 400 });
+        }
+        const deadlineRaw = String((jobRow as { submission_deadline_at?: string | null }).submission_deadline_at || "");
+        if (deadlineRaw) {
+            const deadlineTs = new Date(deadlineRaw).getTime();
+            if (!Number.isNaN(deadlineTs) && deadlineTs < Date.now()) {
+                return NextResponse.json(
+                    { error: "Application deadline has passed for this job." },
+                    { status: 410 }
+                );
+            }
         }
 
         // Applicant-side submission only persists the application.

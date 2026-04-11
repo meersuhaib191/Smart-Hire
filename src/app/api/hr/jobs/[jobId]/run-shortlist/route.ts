@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdmin } from "@/server/supabase/admin";
 import { requireAuthUser, requireHr } from "@/server/auth/session";
-import { runAtsScreeningForJob } from "@/server/ats/screening";
+import { runDeadlineShortlistForJob } from "@/server/pipeline/shortlist";
 
 export async function POST(_request: Request, context: { params: Promise<{ jobId: string }> }) {
   try {
@@ -9,23 +9,11 @@ export async function POST(_request: Request, context: { params: Promise<{ jobId
     requireHr(user);
     const { jobId } = await context.params;
     const admin = createSupabaseAdmin();
-    const { screened, skipped, failed } = await runAtsScreeningForJob({
-      admin,
-      jobId,
-      notifyApplicants: true,
-    });
-
-    return NextResponse.json({
-      success: true,
-      jobId,
-      screened,
-      skipped,
-      failed,
-    });
+    const result = await runDeadlineShortlistForJob(admin, jobId);
+    return NextResponse.json({ success: true, result });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Failed to run ATS screening.";
+    const message = error instanceof Error ? error.message : "Failed to run shortlist.";
     const status = message === "Unauthorized" ? 401 : message === "Forbidden" ? 403 : 500;
     return NextResponse.json({ error: message }, { status });
   }
 }
-
