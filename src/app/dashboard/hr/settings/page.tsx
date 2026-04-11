@@ -6,17 +6,15 @@ import { Button } from "@/components/ui/Button";
 import { ProfileEditForm } from "@/components/hr/profile/ProfileEditForm";
 import { ProfileViewCard } from "@/components/hr/profile/ProfileViewCard";
 import { EMPTY_HR_PROFILE, HrProfessionalProfile } from "@/components/hr/profile/types";
+import { SettingsPage } from "@/components/settings/SettingsPage";
+import { useStore } from "@/store/useStore";
 
 export default function HrSettingsPage() {
+  const { user } = useStore();
   const [profile, setProfile] = useState<HrProfessionalProfile>(EMPTY_HR_PROFILE);
   const [publicProfileUrl, setPublicProfileUrl] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [savingPassword, setSavingPassword] = useState(false);
-  const [passwordForm, setPasswordForm] = useState({
-    newPassword: "",
-    confirmPassword: "",
-  });
 
   useEffect(() => {
     (async () => {
@@ -30,23 +28,6 @@ export default function HrSettingsPage() {
       setLoading(false);
     })();
   }, []);
-
-  const updatePassword = async () => {
-    setSavingPassword(true);
-    const res = await fetch("/api/account/password", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(passwordForm),
-    });
-    const json = await res.json().catch(() => ({}));
-    if (res.ok) {
-      setPasswordForm({ newPassword: "", confirmPassword: "" });
-      toast.success("Password updated successfully.");
-    } else {
-      toast.error(json.error || "Failed to update password.");
-    }
-    setSavingPassword(false);
-  };
 
   return (
     <div className="space-y-6">
@@ -90,35 +71,7 @@ export default function HrSettingsPage() {
         <ProfileViewCard profile={profile} publicProfileUrl={publicProfileUrl} onEdit={() => setIsEditing(true)} />
       )}
 
-      <div className="rounded-2xl border border-white/40 bg-white/80 p-5 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/70">
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Security</h2>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-300">Update your account password.</p>
-
-          <div className="mt-4 space-y-3">
-            <label className="block text-sm text-slate-600 dark:text-slate-300">
-              New password
-              <input
-                type="password"
-                value={passwordForm.newPassword}
-                onChange={(e) => setPasswordForm((prev) => ({ ...prev, newPassword: e.target.value }))}
-                className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-900"
-              />
-            </label>
-            <label className="block text-sm text-slate-600 dark:text-slate-300">
-              Confirm password
-              <input
-                type="password"
-                value={passwordForm.confirmPassword}
-                onChange={(e) => setPasswordForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
-                className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-900"
-              />
-            </label>
-          </div>
-
-          <Button onClick={updatePassword} disabled={savingPassword} className="mt-4 w-full rounded-2xl">
-            {savingPassword ? "Updating..." : "Update password"}
-          </Button>
-      </div>
+      <SettingsPage email={user?.email || ""} />
     </div>
   );
 }
