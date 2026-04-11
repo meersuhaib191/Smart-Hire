@@ -28,7 +28,7 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
   if (!isAuthenticated) return null;
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-100 to-indigo-50 text-slate-900 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900 dark:text-slate-100">
       <Sidebar
         role={user?.role || 'applicant'}
         desktopCollapsed={desktopCollapsed}

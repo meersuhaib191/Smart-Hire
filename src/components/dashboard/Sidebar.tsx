@@ -12,12 +12,14 @@ import {
   Bell,
   BarChart,
   Settings,
-  Sparkles,
   X,
-  BrainCircuit,
+  Sparkles,
+  Brain,
   UserCheck,
+  ShieldCheck,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { motion } from 'motion/react';
 
 interface SidebarItem {
   id: string;
@@ -30,18 +32,17 @@ const roleMenus: Record<UserRole, SidebarItem[]> = {
   applicant: [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', href: '/applicant/dashboard' },
     { id: 'jobs', icon: Briefcase, label: 'Jobs', href: '/jobs' },
-    { id: 'applications', icon: ClipboardCheck, label: 'My Applications', href: '/dashboard/applicant/applications' },
+    { id: 'applications', icon: Users, label: 'My Applications', href: '/dashboard/applicant/applications' },
     { id: 'notifications', icon: Bell, label: 'Notifications', href: '/dashboard/applicant/notifications' },
-    { id: 'practice', icon: ClipboardCheck, label: 'Practice', href: '/dashboard/applicant/practice' },
+    { id: 'practice', icon: Sparkles, label: 'Practice', href: '/dashboard/applicant/practice' },
     { id: 'settings', icon: Settings, label: 'Profile', href: '/applicant/profile' },
   ],
   hr: [
-    { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', href: '/hr/dashboard' },
+    { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard/hr' },
     { id: 'jobs', icon: Briefcase, label: 'Jobs', href: '/dashboard/hr/jobs' },
     { id: 'candidates', icon: Users, label: 'Candidates', href: '/dashboard/hr/candidates' },
-    { id: 'pipeline', icon: ClipboardCheck, label: 'Pipeline', href: '/dashboard/hr/pipeline' },
     { id: 'analytics', icon: BarChart, label: 'Analytics', href: '/dashboard/hr/analytics' },
-    { id: 'settings', icon: Settings, label: 'Profile', href: '/hr/profile' },
+    { id: 'settings', icon: Settings, label: 'Settings', href: '/dashboard/hr/settings' },
   ],
   admin: [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard/admin' },
@@ -81,25 +82,25 @@ export const Sidebar = ({ role, desktopCollapsed, mobileOpen, setMobileOpen }: S
 
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 flex h-screen flex-col border-r border-slate-200/80 bg-white/95 shadow-xl backdrop-blur-xl transition-all duration-300 lg:shadow-none',
+          'fixed inset-y-0 left-0 z-50 flex h-screen flex-col border-r border-white/25 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-slate-100 shadow-2xl backdrop-blur-xl transition-all duration-300 lg:shadow-none',
           sidebarWidth,
           mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         )}
       >
-        <div className="h-16 flex items-center justify-between border-b border-slate-200/80 px-4">
+        <div className="h-16 flex items-center justify-between border-b border-white/10 px-4">
           <div className={cn('flex items-center gap-3 overflow-hidden', desktopCollapsed && 'lg:justify-center lg:gap-0')}>
-            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 text-white shadow-sm">
-              <BrainCircuit size={18} />
+            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-500 text-white shadow-lg">
+              <Brain size={18} />
             </div>
             <div className={cn('min-w-0', desktopCollapsed && 'lg:hidden')}>
-              <p className="truncate text-sm font-semibold tracking-tight text-slate-900">Smart Hire AI</p>
-              <p className="text-[11px] text-slate-500">Hiring Operating System</p>
+              <p className="truncate text-sm font-semibold tracking-tight text-white">SmartHire</p>
+              <p className="text-[11px] text-slate-300">AI Hiring Workspace</p>
             </div>
           </div>
           <Button
             variant="ghost"
             size="icon"
-            className="lg:hidden"
+            className="text-slate-200 hover:bg-white/10 hover:text-white lg:hidden"
             onClick={() => setMobileOpen(false)}
           >
             <X size={18} />
@@ -107,13 +108,13 @@ export const Sidebar = ({ role, desktopCollapsed, mobileOpen, setMobileOpen }: S
         </div>
 
         <div className={cn('px-3 pt-4', desktopCollapsed && 'lg:px-2')}>
-          <div className={cn('rounded-xl border border-indigo-100 bg-indigo-50/80 p-3', desktopCollapsed && 'lg:hidden')}>
-            <div className="flex items-center gap-2 text-xs font-medium text-indigo-700">
+          <div className={cn('rounded-2xl border border-white/15 bg-white/5 p-3 backdrop-blur', desktopCollapsed && 'lg:hidden')}>
+            <div className="flex items-center gap-2 text-xs font-medium text-violet-200">
               <Sparkles size={14} />
               AI Hiring Assistant
             </div>
-            <p className="mt-1 text-[11px] leading-relaxed text-indigo-600">
-              Track pipeline progress and candidate quality in real-time.
+            <p className="mt-1 text-[11px] leading-relaxed text-slate-300">
+              ATS-first screening, ranking, and automation in one place.
             </p>
           </div>
         </div>
@@ -138,46 +139,49 @@ export const Sidebar = ({ role, desktopCollapsed, mobileOpen, setMobileOpen }: S
               desktopCollapsed && 'lg:text-center lg:px-0'
             )}
           >
-            Workspace
+            Navigation
           </div>
           {menu.map((item) => {
             const isActive = pathname === item.href || pathname?.startsWith(`${item.href}/`);
             return (
-              <Link
+              <motion.div key={`${role}-${item.id}`} whileHover={{ x: 2 }} whileTap={{ scale: 0.98 }}>
+                <Link
                 key={`${role}-${item.id}`}
                 href={item.href}
                 onClick={() => setMobileOpen(false)}
                 className={cn(
-                  'group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all',
+                  'group flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition-all',
                   desktopCollapsed && 'lg:justify-center lg:px-2',
                   isActive
-                    ? 'bg-slate-900 text-white shadow-sm'
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                    ? 'bg-gradient-to-r from-violet-500/80 to-indigo-500/80 text-white shadow-lg'
+                    : 'text-slate-300 hover:bg-white/10 hover:text-white'
                 )}
               >
                 <item.icon
                   size={18}
-                  className={cn('shrink-0', isActive ? 'text-white' : 'text-slate-500 group-hover:text-slate-900')}
+                  className={cn('shrink-0', isActive ? 'text-white' : 'text-slate-400 group-hover:text-white')}
                 />
                 <span className={cn('truncate', desktopCollapsed && 'lg:hidden')}>{item.label}</span>
-              </Link>
+                </Link>
+              </motion.div>
             );
           })}
         </div>
 
-        <div className={cn('border-t border-slate-200/80 p-3', desktopCollapsed && 'lg:px-2')}>
-          <div className={cn('flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-2.5', desktopCollapsed && 'lg:justify-center')}>
+        <div className={cn('border-t border-white/10 p-3', desktopCollapsed && 'lg:px-2')}>
+          <div className={cn('flex items-center gap-3 rounded-2xl border border-white/15 bg-white/5 p-2.5', desktopCollapsed && 'lg:justify-center')}>
             <img
               src={user?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=111827&color=fff`}
               alt="User avatar"
               className="h-8 w-8 rounded-full object-cover"
             />
             <div className={cn('min-w-0 flex-1', desktopCollapsed && 'lg:hidden')}>
-              <p className="truncate text-sm font-medium text-slate-900">{user?.name || 'Guest'}</p>
-              <p className="truncate text-xs capitalize text-slate-500">{user?.role || 'visitor'}</p>
+              <p className="truncate text-sm font-medium text-white">{user?.name || 'Guest'}</p>
+              <p className="truncate text-xs capitalize text-slate-400">{user?.role || 'visitor'}</p>
             </div>
-            <div className={cn('rounded-md bg-slate-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500', desktopCollapsed && 'lg:hidden')}>
-              Pro
+            <div className={cn('rounded-md bg-emerald-500/20 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-300', desktopCollapsed && 'lg:hidden')}>
+              <ShieldCheck size={11} className="inline mr-1" />
+              Live
             </div>
           </div>
         </div>

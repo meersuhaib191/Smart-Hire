@@ -1,254 +1,548 @@
 "use client";
-import React, { useEffect, useState } from 'react';
-import { useStore } from '@/store/useStore';
-import { getJobsByCompany } from '@/services/jobsService';
-import { formatDistanceToNow } from 'date-fns';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { motion } from 'motion/react';
 import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  AreaChart,
   Area,
-  PieChart,
-  Pie,
-  Cell
+  AreaChart,
 } from 'recharts';
-import { Users, FileText, TrendingUp, Plus } from 'lucide-react';
+import { BellRing, CalendarClock, CircleAlert, GripVertical, Sparkles, Target, TrendingUp, Users } from 'lucide-react';
 import Link from 'next/link';
 
-const COLORS = ['#6366f1', '#818cf8', '#a5b4fc', '#c7d2fe', '#e0e7ff'];
+type JobRow = {
+  id: string;
+  title: string;
+  status: string;
+  submission_deadline_at?: string | null;
+  shortlist_status?: string | null;
+  shortlist_selected_count?: number | null;
+  shortlist_total_submissions?: number | null;
+  applications?: Array<{ id: string }>;
+};
+
+type Candidate = {
+  applicationId: string;
+  email: string;
+  pipelineStep: string;
+  atsScore: number | null;
+  rankPosition: number | null;
+  skills?: string[];
+};
+
+type AnalyticsPayload = {
+  job: {
+    submissionDeadlineAt: string | null;
+    shortlistStatus: string | null;
+    shortlistSelectedCount: number;
+    shortlistTotalSubmissions: number;
+  } | null;
+  candidates: Candidate[];
+};
+
+type SummaryPayload = {
+  activeJobs: number;
+  totalApplicants: number;
+  interviewingCount: number;
+  completionRate: number;
+  dailyApplicants: Array<{ name: string; applicants: number }>;
+};
+
+const STAGES = [
+  { key: 'ATS', label: 'ATS' },
+  { key: 'MCQ', label: 'MCQ' },
+  { key: 'CODING', label: 'Coding' },
+  { key: 'INTERVIEW', label: 'AI Interview' },
+  { key: 'SELECTED', label: 'Selected' },
+] as const;
+
+type StageKey = (typeof STAGES)[number]['key'];
+
+const stageToLabel: Record<StageKey, string> = {
+  ATS: 'ATS',
+  MCQ: 'MCQ',
+  CODING: 'Coding',
+  INTERVIEW: 'AI Interview',
+  SELECTED: 'Selected',
+};
+
+function normalizeStage(step: string): StageKey {
+  const normalized = String(step || '').toUpperCase();
+  if (normalized.includes('MCQ')) return 'MCQ';
+  if (normalized.includes('CODING')) return 'CODING';
+  if (normalized.includes('INTERVIEW')) return 'INTERVIEW';
+  if (normalized.includes('SELECTED') || normalized.includes('HIRED') || normalized.includes('COMPLETE')) return 'SELECTED';
+  return 'ATS';
+}
+
+function countdown(deadlineIso?: string | null): string {
+  if (!deadlineIso) return 'No deadline configured';
+  const ms = new Date(deadlineIso).getTime() - Date.now();
+  if (ms <= 0) return 'Deadline passed';
+  const hours = Math.floor(ms / (1000 * 60 * 60));
+  const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
+  return `${hours}h ${minutes}m remaining`;
+}
 
 export const HRDashboard = () => {
-  const { user } = useStore();
-  const [jobs, setJobs] = useState<Array<{
-    id: string;
-    title: string;
-    created_at: string;
-    status: string;
-    applications?: Array<{ id: string }>;
-  }>>([]);
-  const [isLoadingJobs, setIsLoadingJobs] = useState(true);
-  const [jobsError, setJobsError] = useState<string | null>(null);
-  const [summary, setSummary] = useState<{
-    activeJobs: number;
-    totalApplicants: number;
-    interviewingCount: number;
-    completionRate: number;
-    funnel: Array<{ name: string; value: number }>;
-    dailyApplicants: Array<{ name: string; applicants: number }>;
-  } | null>(null);
-
-  useEffect(() => {
-    const fetchJobs = async () => {
-      try {
-        const fetchedJobs = (await getJobsByCompany()) as Array<{
-          id: string;
-          title: string;
-          created_at: string;
-          status: string;
-          applications?: Array<{ id: string }>;
-        }>;
-        setJobs(fetchedJobs);
-        setJobsError(null);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "Failed to fetch jobs.";
-        setJobsError(message);
-        console.error('Failed to fetch jobs:', error);
-      }
-      setIsLoadingJobs(false);
-    };
-
-    fetchJobs();
-  }, [user?.id]);
+  const [jobs, setJobs] = useState<JobRow[]>([]);
+  const [selectedJobId, setSelectedJobId] = useState('');
+  const [summary, setSummary] = useState<SummaryPayload | null>(null);
+  const [analytics, setAnalytics] = useState<AnalyticsPayload | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [draggedCandidateId, setDraggedCandidateId] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [clockTick, setClockTick] = useState(0);
 
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("/api/hr/summary");
-        const json = await res.json();
-        if (res.ok && json.activeJobs != null) {
+        const [jobsRes, summaryRes] = await Promise.all([
+          fetch('/api/hr/jobs', { cache: 'no-store' }),
+          fetch('/api/hr/summary', { cache: 'no-store' }),
+        ]);
+        const jobsJson = await jobsRes.json().catch(() => ({}));
+        const summaryJson = await summaryRes.json().catch(() => ({}));
+        const nextJobs = (jobsJson.jobs || []) as JobRow[];
+        setJobs(nextJobs);
+        if (nextJobs.length) setSelectedJobId(nextJobs[0].id);
+        if (summaryRes.ok) {
           setSummary({
-            activeJobs: json.activeJobs,
-            totalApplicants: json.totalApplicants,
-            interviewingCount: json.interviewingCount ?? 0,
-            completionRate: json.completionRate ?? 0,
-            funnel: json.funnel || [],
-            dailyApplicants: json.dailyApplicants || [],
+            activeJobs: Number(summaryJson.activeJobs || 0),
+            totalApplicants: Number(summaryJson.totalApplicants || 0),
+            interviewingCount: Number(summaryJson.interviewingCount || 0),
+            completionRate: Number(summaryJson.completionRate || 0),
+            dailyApplicants: (summaryJson.dailyApplicants || []) as Array<{ name: string; applicants: number }>,
           });
         }
-      } catch {
-        // ignore
+      } finally {
+        setLoading(false);
       }
     })();
   }, []);
 
+  useEffect(() => {
+    if (!selectedJobId) return;
+    (async () => {
+      const res = await fetch(`/api/hr/jobs/${selectedJobId}/analytics`, { cache: 'no-store' });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setAnalytics({
+          job: json.job || null,
+          candidates: (json.candidates || []) as Candidate[],
+        });
+      }
+    })();
+  }, [selectedJobId]);
+
+  useEffect(() => {
+    if (!selectedJobId) return;
+    const id = window.setInterval(() => {
+      setClockTick((prev) => prev + 1);
+      void (async () => {
+        const res = await fetch(`/api/hr/jobs/${selectedJobId}/analytics`, { cache: 'no-store' });
+        const json = await res.json().catch(() => ({}));
+        if (res.ok) {
+          setAnalytics({
+            job: json.job || null,
+            candidates: (json.candidates || []) as Candidate[],
+          });
+        }
+      })();
+    }, 20000);
+    return () => window.clearInterval(id);
+  }, [selectedJobId]);
+
+  const selectedJob = useMemo(() => jobs.find((job) => job.id === selectedJobId) || null, [jobs, selectedJobId]);
+  const candidates = analytics?.candidates || [];
+  const filteredCandidates = useMemo(
+    () => candidates.filter((candidate) => candidate.email.toLowerCase().includes(query.trim().toLowerCase())),
+    [candidates, query]
+  );
+
+  const stageBuckets = useMemo(() => {
+    const grouped: Record<StageKey, Candidate[]> = {
+      ATS: [],
+      MCQ: [],
+      CODING: [],
+      INTERVIEW: [],
+      SELECTED: [],
+    };
+    for (const candidate of filteredCandidates) {
+      grouped[normalizeStage(candidate.pipelineStep)].push(candidate);
+    }
+    for (const key of Object.keys(grouped) as StageKey[]) {
+      grouped[key].sort((a, b) => (a.rankPosition ?? 999) - (b.rankPosition ?? 999));
+    }
+    return grouped;
+  }, [filteredCandidates]);
+
+  const stageMetrics = useMemo(() => {
+    const total = filteredCandidates.length || 1;
+    return STAGES.map((stage, index) => {
+      const count = stageBuckets[stage.key].length;
+      const previous = index === 0 ? filteredCandidates.length : stageBuckets[STAGES[index - 1].key].length || 1;
+      return {
+        ...stage,
+        count,
+        conversion: Math.round((count / previous) * 100),
+        progress: Math.round((count / total) * 100),
+      };
+    });
+  }, [filteredCandidates.length, stageBuckets]);
+
+  const histogramData = useMemo(() => {
+    const bins = [
+      { range: '0-20', min: 0, max: 20, count: 0 },
+      { range: '21-40', min: 21, max: 40, count: 0 },
+      { range: '41-60', min: 41, max: 60, count: 0 },
+      { range: '61-80', min: 61, max: 80, count: 0 },
+      { range: '81-100', min: 81, max: 100, count: 0 },
+    ];
+    for (const candidate of candidates) {
+      const score = Number(candidate.atsScore ?? 0);
+      const target = bins.find((bin) => score >= bin.min && score <= bin.max);
+      if (target) target.count += 1;
+    }
+    return bins;
+  }, [candidates]);
+
+  const activity = useMemo(() => {
+    const timeline = [
+      {
+        id: 'status',
+        title: `Shortlist status: ${analytics?.job?.shortlistStatus || 'pending'}`,
+        meta: `Applicants ${analytics?.job?.shortlistTotalSubmissions || 0}, shortlisted ${analytics?.job?.shortlistSelectedCount || 0}`,
+      },
+      ...candidates.slice(0, 8).map((candidate) => ({
+        id: candidate.applicationId,
+        title: `${candidate.email} is in ${stageToLabel[normalizeStage(candidate.pipelineStep)]}`,
+        meta: `ATS ${candidate.atsScore == null ? 'N/A' : candidate.atsScore.toFixed(2)} · Rank #${candidate.rankPosition ?? '-'}`,
+      })),
+    ];
+    return timeline;
+  }, [analytics?.job?.shortlistSelectedCount, analytics?.job?.shortlistStatus, analytics?.job?.shortlistTotalSubmissions, candidates]);
+
+  const onDropCandidate = (targetStage: StageKey) => {
+    if (!draggedCandidateId || !analytics) return;
+    setAnalytics((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        candidates: prev.candidates.map((candidate) =>
+          candidate.applicationId === draggedCandidateId ? { ...candidate, pipelineStep: targetStage } : candidate
+        ),
+      };
+    });
+    setDraggedCandidateId(null);
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900">HR Dashboard</h1>
-        <div className="flex gap-3">
-          <Link href="/dashboard/hr/jobs/new">
-            <Button leftIcon={<Plus className="h-4 w-4" />}>Post New Job</Button>
-          </Link>
+      <div className="rounded-3xl border border-white/40 bg-white/75 p-6 shadow-xl backdrop-blur dark:border-white/10 dark:bg-slate-900/70">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] text-violet-500">SmartHire Command Center</p>
+            <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-900 dark:text-white">
+              Premium Hiring Dashboard
+            </h1>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+              Real-time pipeline analytics, ATS-first ranking, and AI-ready recruitment workflows.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline" className="rounded-full border-violet-200 bg-violet-50 text-violet-700">
+              Live updates every 20s
+            </Badge>
+            <div className="w-[240px]">
+              <Select value={selectedJobId} onValueChange={setSelectedJobId}>
+                <SelectTrigger className="rounded-2xl">
+                  <SelectValue placeholder="Select job" />
+                </SelectTrigger>
+                <SelectContent>
+                  {jobs.map((job) => (
+                    <SelectItem key={job.id} value={job.id}>
+                      {job.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search candidate"
+              className="h-10 rounded-2xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-900"
+            />
+            <Link href="/dashboard/hr/jobs/new">
+              <Button className="rounded-2xl">Post Job</Button>
+            </Link>
+          </div>
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Jobs</CardTitle>
-            <FileText className="h-4 w-4 text-slate-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{summary?.activeJobs ?? "—"}</div>
-            <p className="text-xs text-slate-500">Posted by your account</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Applicants</CardTitle>
-            <Users className="h-4 w-4 text-slate-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{summary?.totalApplicants ?? "—"}</div>
-            <p className="text-xs text-slate-500">Applications on your jobs</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Interviewing</CardTitle>
-            <Users className="h-4 w-4 text-slate-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{summary?.interviewingCount ?? "—"}</div>
-            <p className="text-xs text-slate-500">Currently in interview stage</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Completion Rate</CardTitle>
-            <TrendingUp className="h-4 w-4 text-slate-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{summary?.completionRate ?? "—"}%</div>
-            <p className="text-xs text-slate-500">Applications that reached COMPLETE</p>
-          </CardContent>
-        </Card>
+      {loading ? (
+        <div className="grid gap-4 md:grid-cols-3">
+          <div className="h-32 animate-pulse rounded-2xl bg-slate-200/80 dark:bg-slate-800" />
+          <div className="h-32 animate-pulse rounded-2xl bg-slate-200/80 dark:bg-slate-800" />
+          <div className="h-32 animate-pulse rounded-2xl bg-slate-200/80 dark:bg-slate-800" />
+        </div>
+      ) : null}
+
+      <div className="grid gap-4 md:grid-cols-5">
+        {stageMetrics.map((stage) => (
+          <motion.div
+            key={stage.key}
+            whileHover={{ y: -4 }}
+            className="rounded-2xl border border-white/50 bg-white/80 p-4 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/70"
+            title="Conversion from previous stage"
+          >
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{stage.label}</p>
+              <Badge variant="secondary" className="rounded-full">{stage.conversion}%</Badge>
+            </div>
+            <p className="mt-3 text-2xl font-semibold text-slate-900 dark:text-white">{stage.count}</p>
+            <div className="mt-3 h-2 rounded-full bg-slate-200 dark:bg-slate-700">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-violet-500 to-indigo-500"
+                style={{ width: `${stage.progress}%` }}
+              />
+            </div>
+          </motion.div>
+        ))}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-4">
-          <CardHeader>
-            <CardTitle>Applicant Overview</CardTitle>
-          </CardHeader>
-          <CardContent className="pl-2">
-            <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={summary?.dailyApplicants || []}>
-                  <defs>
-                    <linearGradient id="colorApplicants" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#6366f1" stopOpacity={0.8} />
-                      <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                  <XAxis dataKey="name" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0' }}
-                  />
-                  <Area type="monotone" dataKey="applicants" stroke="#6366f1" fillOpacity={1} fill="url(#colorApplicants)" />
-                </AreaChart>
-              </ResponsiveContainer>
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="rounded-2xl border border-white/50 bg-white/80 p-5 shadow-sm dark:border-white/10 dark:bg-slate-900/70">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200">
+              <CalendarClock size={16} />
+              <p className="text-sm font-semibold">Deadline + ATS Status</p>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card className="col-span-3">
-          <CardHeader>
-            <CardTitle>Hiring Funnel</CardTitle>
-            <CardDescription>Conversion rates across stages</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px] w-full flex items-center justify-center">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={summary?.funnel || []}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    paddingAngle={5}
-                    dataKey="value"
-                  >
-                    {(summary?.funnel || []).map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="mt-4 space-y-2">
-              {(summary?.funnel || []).map((item, index) => (
-                <div key={index} className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>
-                    <span className="text-slate-600">{item.name}</span>
-                  </div>
-                  <span className="font-medium">{item.value}</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Job Postings</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {isLoadingJobs ? (
-              <div className="text-center py-8 text-slate-500">Loading jobs...</div>
-            ) : jobsError ? (
-              <div className="text-center py-8 text-red-600">{jobsError}</div>
-            ) : jobs.length > 0 ? (
-              jobs.map((job) => (
-                <div key={job.id} className="flex items-center justify-between border-b border-slate-100 last:border-0 pb-4 last:pb-0">
-                  <div>
-                    <h4 className="font-semibold text-slate-900">{job.title}</h4>
-                    <p className="text-xs text-slate-500">Posted {formatDistanceToNow(new Date(job.created_at), { addSuffix: true })}</p>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="text-right">
-                      <div className="font-bold text-slate-900">{job.applications ? job.applications.length : 0}</div>
-                      <div className="text-xs text-slate-500">Applicants</div>
-                    </div>
-                    <Badge variant={job.status === 'PUBLISHED' ? 'success' : 'secondary'}>{job.status}</Badge>
-                    <Button variant="ghost" size="sm">Manage</Button>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="text-center py-8 text-slate-500">
-                <p>No jobs posted yet.</p>
-                <Link href="/dashboard/hr/jobs/new">
-                  <Button variant="outline" className="mt-4">Create your first job</Button>
-                </Link>
-              </div>
-            )}
+            <Badge
+              variant={
+                analytics?.job?.shortlistStatus === 'completed'
+                  ? 'success'
+                  : analytics?.job?.shortlistStatus === 'failed'
+                    ? 'error'
+                    : 'secondary'
+              }
+              className="rounded-full"
+            >
+              {analytics?.job?.shortlistStatus || 'pending'}
+            </Badge>
           </div>
-        </CardContent>
-      </Card>
+          <p className="mt-3 text-xl font-semibold text-slate-900 dark:text-white">
+            {countdown(analytics?.job?.submissionDeadlineAt)}
+          </p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Deadline: {analytics?.job?.submissionDeadlineAt ? new Date(analytics.job.submissionDeadlineAt).toLocaleString() : 'Not set'}
+          </p>
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <div className="rounded-xl bg-slate-100/70 p-3 dark:bg-slate-800/70">
+              <p className="text-xs text-slate-500">Total applicants</p>
+              <p className="text-lg font-semibold">{analytics?.job?.shortlistTotalSubmissions ?? selectedJob?.applications?.length ?? 0}</p>
+            </div>
+            <div className="rounded-xl bg-slate-100/70 p-3 dark:bg-slate-800/70">
+              <p className="text-xs text-slate-500">Shortlisted</p>
+              <p className="text-lg font-semibold">{analytics?.job?.shortlistSelectedCount ?? 0}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-white/50 bg-white/80 p-5 shadow-sm dark:border-white/10 dark:bg-slate-900/70">
+          <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200">
+            <Target size={16} />
+            <p className="text-sm font-semibold">Hiring Pulse</p>
+          </div>
+          <div className="mt-4 space-y-3">
+            <div className="flex items-center justify-between rounded-xl bg-slate-100/70 px-3 py-2 dark:bg-slate-800/70">
+              <span className="text-xs text-slate-500">Active jobs</span>
+              <span className="font-semibold">{summary?.activeJobs ?? 0}</span>
+            </div>
+            <div className="flex items-center justify-between rounded-xl bg-slate-100/70 px-3 py-2 dark:bg-slate-800/70">
+              <span className="text-xs text-slate-500">Applicants</span>
+              <span className="font-semibold">{summary?.totalApplicants ?? 0}</span>
+            </div>
+            <div className="flex items-center justify-between rounded-xl bg-slate-100/70 px-3 py-2 dark:bg-slate-800/70">
+              <span className="text-xs text-slate-500">Completion</span>
+              <span className="font-semibold">{summary?.completionRate ?? 0}%</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-dashed border-violet-300 bg-violet-50/70 p-5 dark:border-violet-900 dark:bg-violet-950/20">
+          <div className="flex items-center gap-2 text-violet-700 dark:text-violet-300">
+            <Sparkles size={16} />
+            <p className="text-sm font-semibold">Automation Status</p>
+          </div>
+          <p className="mt-3 text-sm text-violet-700/90 dark:text-violet-200">
+            The board is WebSocket-ready. Current implementation auto-refreshes with polling for near real-time ATS and stage sync.
+          </p>
+          <div className="mt-4 flex items-center gap-2 text-xs text-violet-700 dark:text-violet-300">
+            <BellRing size={14} />
+            Last tick: {clockTick}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[1fr_320px]">
+        <div className="rounded-2xl border border-white/50 bg-white/80 p-4 shadow-sm dark:border-white/10 dark:bg-slate-900/70">
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Kanban Pipeline</p>
+            <p className="text-xs text-slate-500">Drag and drop candidate cards between stages</p>
+          </div>
+          <div className="grid gap-3 lg:grid-cols-5">
+            {STAGES.map((stage) => (
+              <div
+                key={stage.key}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={() => onDropCandidate(stage.key)}
+                className="min-h-[360px] rounded-2xl border border-slate-200/70 bg-slate-50/70 p-3 dark:border-slate-700 dark:bg-slate-900/50"
+              >
+                <div className="mb-3 flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{stage.label}</p>
+                  <Badge variant="outline" className="rounded-full">{stageBuckets[stage.key].length}</Badge>
+                </div>
+                <div className="space-y-2">
+                  {stageBuckets[stage.key].map((candidate) => (
+                    <motion.div
+                      key={candidate.applicationId}
+                      layout
+                      draggable
+                      onDragStart={() => setDraggedCandidateId(candidate.applicationId)}
+                      whileHover={{ scale: 1.01 }}
+                      className="cursor-grab rounded-xl border border-white/50 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-slate-800"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-slate-900 dark:text-white">{candidate.email}</p>
+                          <p className="text-xs text-slate-500">Rank #{candidate.rankPosition ?? '-'}</p>
+                        </div>
+                        <GripVertical size={14} className="text-slate-400" />
+                      </div>
+                      <div className="mt-2 flex items-center gap-2">
+                        <Badge className="rounded-full bg-indigo-100 text-indigo-700 hover:bg-indigo-100">
+                          ATS {candidate.atsScore == null ? '-' : candidate.atsScore.toFixed(2)}
+                        </Badge>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {(candidate.skills || []).length ? (
+                          (candidate.skills || []).map((skill) => (
+                            <span key={skill} className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-600 dark:bg-slate-700 dark:text-slate-200">
+                              {skill}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-[10px] text-slate-400">No extracted skill tags</span>
+                        )}
+                      </div>
+                    </motion.div>
+                  ))}
+                  {!stageBuckets[stage.key].length ? (
+                    <div className="rounded-xl border border-dashed border-slate-200 p-3 text-center text-xs text-slate-400 dark:border-slate-700">
+                      Empty stage
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-white/50 bg-white/80 p-4 shadow-sm dark:border-white/10 dark:bg-slate-900/70">
+          <div className="flex items-center gap-2">
+            <TrendingUp size={16} className="text-violet-500" />
+            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Activity Feed</p>
+          </div>
+          <div className="mt-4 space-y-3">
+            {activity.map((event) => (
+              <motion.div
+                key={event.id}
+                initial={{ opacity: 0, x: 8 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="rounded-xl border border-slate-200/80 bg-white/90 p-3 dark:border-slate-700 dark:bg-slate-900"
+              >
+                <p className="text-sm font-medium text-slate-900 dark:text-white">{event.title}</p>
+                <p className="mt-1 text-xs text-slate-500">{event.meta}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="rounded-2xl border border-white/50 bg-white/80 p-4 shadow-sm dark:border-white/10 dark:bg-slate-900/70">
+          <p className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-200">Funnel Conversion</p>
+          <div className="h-[220px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={stageMetrics}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+                <YAxis tick={{ fontSize: 12 }} />
+                <Tooltip />
+                <Bar dataKey="count" fill="#6366f1" radius={[8, 8, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-white/50 bg-white/80 p-4 shadow-sm dark:border-white/10 dark:bg-slate-900/70">
+          <p className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-200">Applicant Growth</p>
+          <div className="h-[220px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={summary?.dailyApplicants || []}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                <YAxis tick={{ fontSize: 12 }} />
+                <Tooltip />
+                <Line type="monotone" dataKey="applicants" stroke="#8b5cf6" strokeWidth={2.5} dot={{ r: 3 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-white/50 bg-white/80 p-4 shadow-sm dark:border-white/10 dark:bg-slate-900/70">
+          <p className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-200">ATS Score Distribution</p>
+          <div className="h-[220px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={histogramData}>
+                <defs>
+                  <linearGradient id="atsScoreFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.7} />
+                    <stop offset="95%" stopColor="#4f46e5" stopOpacity={0.05} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="range" tick={{ fontSize: 12 }} />
+                <YAxis tick={{ fontSize: 12 }} />
+                <Tooltip />
+                <Area type="monotone" dataKey="count" stroke="#4f46e5" fill="url(#atsScoreFill)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+
+      {!jobs.length ? (
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-white/70 p-8 text-center dark:border-slate-700 dark:bg-slate-900/60">
+          <CircleAlert className="mx-auto h-6 w-6 text-slate-400" />
+          <p className="mt-2 text-sm text-slate-500">No jobs found. Create a job to activate the SaaS dashboard widgets.</p>
+          <Link href="/dashboard/hr/jobs/new">
+            <Button variant="outline" className="mt-4 rounded-2xl">Create your first job</Button>
+          </Link>
+        </div>
+      ) : null}
     </div>
   );
 };

@@ -80,7 +80,7 @@ export async function GET(_request: Request, context: { params: Promise<{ jobId:
 
     const { data: stages } = await admin
       .from("stage_results")
-      .select("application_id, stage_type, score, passed")
+      .select("application_id, stage_type, score, passed, breakdown")
       .in("application_id", applicationIds);
 
     const rankByApp = Object.fromEntries((rankings || []).map((r) => [r.application_id, r]));
@@ -91,16 +91,28 @@ export async function GET(_request: Request, context: { params: Promise<{ jobId:
       stagesByApp[aid].push(s);
     }
 
-    const candidates = (apps || []).map((a) => ({
+    const candidates = (apps || []).map((a) => {
+      const atsStage = (stagesByApp[a.id] || []).find((s) => String(s.stage_type).toUpperCase() === "ATS");
+      const rawMatchedSkills = (
+        (atsStage as { breakdown?: { ats_engine?: { matched_skills?: unknown[] } } })?.breakdown?.ats_engine
+          ?.matched_skills || []
+      ) as unknown[];
+      const skills = rawMatchedSkills
+        .map((value) => String(value || "").trim())
+        .filter(Boolean)
+        .slice(0, 4);
+
+      return {
       applicationId: a.id,
       email: emailByUser[a.user_id as string] || "unknown",
       pipelineStep: (a.pipeline_step as string) || "APPLIED",
       finalScore: rankByApp[a.id]?.final_score ?? null,
       rankPosition: rankByApp[a.id]?.rank_position ?? null,
       stages: stagesByApp[a.id] || [],
-      atsScore:
-        (stagesByApp[a.id] || []).find((s) => String(s.stage_type).toUpperCase() === "ATS")?.score ?? null,
-    }));
+      atsScore: atsStage?.score ?? null,
+      skills,
+    };
+    });
 
     // Fallback ranking when rank_position is not populated yet.
     // Enforce ATS-first ordering for shortlist transparency.
