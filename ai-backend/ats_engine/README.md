@@ -1,78 +1,54 @@
 # ATS Engine (Standalone Backend Core)
 
-Production-grade ATS backend module with no UI dependency.
+Standalone ATS parser/scoring/ranking backend used by Smart Hire.
 
-## Structure
+## Core Components
 
 ```text
 ats_engine/
-  parser/
-    resume_parser.py
-    job_parser.py
-  embedding/
-    embedder.py
-  scoring/
-    feature_engineering.py
-    scorer.py
-  ranking/
-    ranker.py
-  models/
-    schemas.py
-  api/
-    main.py
-  utils/
+  parser/                 # section-aware resume + JD parsing
+  embedding/              # semantic similarity backend
+  scoring/                # feature engineering + weighted score
+  ranking/                # multi-job ranking support
+  models/                 # request/response schemas
+  api/                    # FastAPI routes
+  tests/                  # ATS unit tests
 ```
 
 ## API Endpoints
 
+- `GET /` -> API metadata
+- `GET /health` -> runtime health
 - `POST /parse-resume`
 - `POST /parse-job`
 - `POST /score`
 - `POST /rank`
-- `POST /evaluate` (Top-1 / Top-3 / MRR)
-- `POST /log-error` (prediction error logging)
+- `POST /evaluate`
+- `POST /log-error`
 
-## Run API
+## Run Locally
 
 From `ai-backend`:
 
 ```bash
-uvicorn ats_engine.api.main:app --host 0.0.0.0 --port 8020
+pip install -r requirements.txt
+uvicorn ats_engine.api.main:app --host 0.0.0.0 --port 8020 --reload
 ```
 
-## Sample Run
+## Design Notes (Current)
 
-```bash
-curl -X POST "http://127.0.0.1:8020/score" ^
-  -F "resume=@K:/path/to/resume.pdf" ^
-  -F "job_text=Data Analyst role. Required SQL, Tableau, reporting, 2 years experience."
-```
-
-```bash
-curl -X POST "http://127.0.0.1:8020/rank" ^
-  -F "resume=@K:/path/to/resume.pdf" ^
-  -F "payload=[\"Data Analyst required SQL Tableau reporting\",\"Backend Engineer required Python FastAPI PostgreSQL\"]"
-```
+- Resume parser is section-aware and outputs structured fields.
+- Job parser normalizes required/preferred/generic skill sections.
+- Skill matching is strict normalized set logic (no synthetic fallback boosts).
+- Project-context skill inference is supported via controlled mappings.
+- Shortlist orchestration is handled in app server (`src/server/pipeline/shortlist.ts`), not in this module.
 
 ## Testing
 
 ```bash
 python -m unittest ats_engine.tests.test_core -v
+python -m unittest ats_engine.tests.test_job_parser -v
 ```
 
-## Calibration Notes
-
-- Skill matching uses strict hybrid logic:
-  - exact match = `1.0`
-  - synonym match = `0.9`
-  - embedding similarity `> 0.75` = `0.8`
-- Experience logic:
-  - required exp missing -> `1.0`
-  - candidate exp missing -> `0.5`
-  - otherwise `min(candidate/required, 1.0)`
-- Semantic calibration:
-  - normalize cosine using `(cosine + 1) / 2`
-  - damp high similarities (`>0.8`) by `0.95`
-- Confidence:
-  - `0.5 * skill + 0.3 * semantic + 0.2 * consistency`
+For full platform-level architecture and change history, see root `README.md`.
 

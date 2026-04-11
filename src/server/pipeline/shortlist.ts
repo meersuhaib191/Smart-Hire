@@ -4,8 +4,6 @@ import { createUserNotification } from "@/server/notifications/createNotificatio
 import { generateMcqsFromContext } from "@/server/mcq/generator";
 
 const SHORTLIST_PERCENT = 0.2;
-const SHORTLIST_MAX = Number(process.env.SHORTLIST_MAX || 2000);
-const SHORTLIST_MIN = Number(process.env.SHORTLIST_MIN || 1);
 const MCQ_WINDOW_HOURS = Number(process.env.SHORTLIST_MCQ_WINDOW_HOURS || 72);
 
 const missingPipelineStepColumn = (message?: string) =>
@@ -47,8 +45,8 @@ export type ShortlistRunResult = {
 
 function computeShortlistSize(total: number): number {
   if (total <= 0) return 0;
-  const computed = Math.ceil(total * SHORTLIST_PERCENT);
-  return Math.max(SHORTLIST_MIN, Math.min(SHORTLIST_MAX, computed));
+  // Strict top 20% selection as requested.
+  return Math.floor(total * SHORTLIST_PERCENT);
 }
 
 function buildMcqDeadlineIso(): string {
@@ -137,7 +135,7 @@ export async function runDeadlineShortlistForJob(
   });
 
   try {
-    await runAtsScreeningForJob({
+    const atsResult = await runAtsScreeningForJob({
       admin,
       jobId: job.id,
       notifyApplicants: false,
@@ -177,8 +175,13 @@ export async function runDeadlineShortlistForJob(
     if (stageError) throw new Error(stageError.message);
 
     const scoreMap = new Map<string, number>();
+    for (const [appId, score] of Object.entries(atsResult.scoresByApplicationId || {})) {
+      scoreMap.set(String(appId), Number(score || 0));
+    }
     for (const row of atsStages || []) {
-      scoreMap.set(String(row.application_id), Number(row.score || 0));
+      if (!scoreMap.has(String(row.application_id))) {
+        scoreMap.set(String(row.application_id), Number(row.score || 0));
+      }
     }
 
     const ranked = [...applications].sort((a, b) => {

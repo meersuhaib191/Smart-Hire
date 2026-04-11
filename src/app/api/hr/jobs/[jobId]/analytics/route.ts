@@ -97,15 +97,15 @@ export async function GET(_request: Request, context: { params: Promise<{ jobId:
       finalScore: rankByApp[a.id]?.final_score ?? null,
       rankPosition: rankByApp[a.id]?.rank_position ?? null,
       stages: stagesByApp[a.id] || [],
+      atsScore:
+        (stagesByApp[a.id] || []).find((s) => String(s.stage_type).toUpperCase() === "ATS")?.score ?? null,
     }));
 
     // Fallback ranking when rank_position is not populated yet.
+    // Enforce ATS-first ordering for shortlist transparency.
     const scoreOf = (c: (typeof candidates)[number]) => {
       if (c.finalScore != null) return Number(c.finalScore);
-      const ats = c.stages.find((s) => String(s.stage_type).toUpperCase() === "ATS");
-      const mcq = c.stages.find((s) => String(s.stage_type).toUpperCase() === "MCQ");
-      const coding = c.stages.find((s) => String(s.stage_type).toUpperCase() === "CODING");
-      return Number(coding?.score ?? mcq?.score ?? ats?.score ?? 0);
+      return Number(c.atsScore ?? 0);
     };
     const missingRank = candidates.every((c) => c.rankPosition == null);
     if (missingRank) {

@@ -15,6 +15,7 @@ type CandidateRow = {
   email: string;
   pipelineStep: string;
   finalScore: number | null;
+  atsScore: number | null;
   rankPosition: number | null;
 };
 
@@ -65,7 +66,9 @@ export default function HrCandidatesPage() {
         const ra = a.rankPosition ?? Number.MAX_SAFE_INTEGER;
         const rb = b.rankPosition ?? Number.MAX_SAFE_INTEGER;
         if (ra !== rb) return ra - rb;
-        return (b.finalScore || 0) - (a.finalScore || 0);
+        const bScore = b.finalScore ?? b.atsScore ?? 0;
+        const aScore = a.finalScore ?? a.atsScore ?? 0;
+        return bScore - aScore;
       }),
     [candidates]
   );
@@ -118,7 +121,8 @@ export default function HrCandidatesPage() {
                 </div>
               </div>
               <p className="mt-1 text-sm text-slate-500">
-                ATS score:{" "}
+                ATS score: {candidate.atsScore == null ? "-" : Number(candidate.atsScore).toFixed(2)}
+                {" · "}Ranking score:{" "}
                 {candidate.finalScore == null ? "-" : Number(candidate.finalScore).toFixed(2)}
               </p>
             </div>
