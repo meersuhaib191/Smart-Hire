@@ -39,6 +39,13 @@ class Embedder:
         self.cache = _VectorCache()
         self.model = None
         self.engine = "tfidf_fallback"
+        # Avoid heavy model downloads during container boot on PaaS providers
+        # where slow startup can fail health/port checks. Use TF-IDF by default
+        # unless explicitly opting into sentence-transformer.
+        if os.getenv("ATS_EMBEDDER_ENGINE", "").strip().lower() in {"", "auto", "tfidf", "tfidf_fallback"}:
+            self.model = None
+            self.engine = "tfidf_fallback"
+            return
         configured_engine = (os.getenv("ATS_EMBEDDER_ENGINE") or os.getenv("EMBEDDER_ENGINE") or "").strip().lower()
         if configured_engine in {"tfidf", "tfidf_fallback"}:
             self.model = None
