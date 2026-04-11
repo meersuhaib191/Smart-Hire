@@ -52,7 +52,7 @@ export default function ApplyPage() {
     useEffect(() => {
         if (!success) return;
         const timer = window.setTimeout(() => {
-            router.push("/jobs");
+            router.push("/dashboard/applicant/applications");
         }, 3000);
         return () => window.clearTimeout(timer);
     }, [router, success]);
@@ -103,10 +103,10 @@ export default function ApplyPage() {
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <p className="text-sm text-slate-600">
-                            Redirecting to jobs feed in a few seconds...
+                            Redirecting to your applications dashboard in a few seconds...
                         </p>
-                        <Button onClick={() => router.push("/jobs")} className="mt-2" variant="outline">
-                            Go to Jobs Now
+                        <Button onClick={() => router.push("/dashboard/applicant/applications")} className="mt-2" variant="outline">
+                            Open My Applications
                         </Button>
                     </CardContent>
                 </Card>

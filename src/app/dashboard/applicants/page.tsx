@@ -15,7 +15,6 @@ import { PageLoadingSkeleton } from "@/components/ui/PageLoadingSkeleton";
 import { Button } from "@/components/ui/Button";
 import { CandidateCard } from "@/components/pipeline/CandidateCard";
 import { PipelineStageColumn } from "@/components/pipeline/PipelineStageColumn";
-import { AdvanceStageModal } from "@/components/pipeline/AdvanceStageModal";
 import { CandidateRow, PipelineStageId, scoreFor, stageOrder, stageLabels } from "@/components/pipeline/types";
 import { BrainCircuit, Briefcase, Share2, Sparkles, Users } from "lucide-react";
 
@@ -49,7 +48,7 @@ export default function ApplicantsDashboard() {
   const [loadingCandidates, setLoadingCandidates] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [actionMessage, setActionMessage] = useState("");
-  const [actionLoading, setActionLoading] = useState<null | "ats" | "advance" | "move">(null);
+  const [actionLoading, setActionLoading] = useState<null | "move">(null);
   const [activity, setActivity] = useState<Array<{ at: string; message: string }>>([]);
   const [shortlistMeta, setShortlistMeta] = useState<ShortlistMeta | null>(null);
 
@@ -152,113 +151,6 @@ export default function ApplicantsDashboard() {
     const prevCount = stageBuckets[prev].length;
     if (!prevCount) return 0;
     return (stageBuckets[stage].length / prevCount) * 100;
-  };
-
-  const runAtsScreening = async () => {
-    if (!jobId) return;
-    setActionLoading("ats");
-    setActionMessage("");
-    try {
-      const res = await fetch(`/api/hr/jobs/${jobId}/run-ats`, { method: "POST" });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error || "Failed to run ATS screening.");
-      setActionMessage(`ATS screening completed. Screened: ${json.screened}, Skipped: ${json.skipped}, Failed: ${json.failed}.`);
-      setActivity((prev) => [
-        { at: new Date().toISOString(), message: `ATS screening completed for ${selectedTitle}.` },
-        ...prev,
-      ].slice(0, 30));
-      await loadCandidates(jobId);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to run ATS screening.";
-      setErrorMessage(message);
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const runShortlist = async () => {
-    if (!jobId) return;
-    setActionLoading("advance");
-    setActionMessage("");
-    try {
-      const res = await fetch(`/api/hr/jobs/${jobId}/run-shortlist`, { method: "POST" });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error || "Failed to run shortlist.");
-      const result = (json.result || {}) as {
-        status?: string;
-        reason?: string;
-        shortlisted?: number;
-        totalApplicants?: number;
-      };
-      if (result.status === "skipped") {
-        setActionMessage(`Shortlist skipped: ${result.reason || "not_due"}.`);
-      } else {
-        setActionMessage(
-          `Shortlist completed. Selected ${Number(result.shortlisted || 0)} of ${Number(
-            result.totalApplicants || 0
-          )} applicants.`
-        );
-      }
-      setActivity((prev) => [
-        { at: new Date().toISOString(), message: "Ran ATS deadline shortlist." },
-        ...prev,
-      ].slice(0, 30));
-      await loadCandidates(jobId);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to run shortlist.";
-      setErrorMessage(message);
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const advanceTopN = async (
-    fromStage: "ATS" | "MCQ" | "CODING",
-    payload: { topN: number; deadlineAt?: string; directives?: string }
-  ) => {
-    if (!jobId) return;
-    setActionLoading("advance");
-    setActionMessage("");
-    try {
-      const res = await fetch(`/api/hr/jobs/${jobId}/advance`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fromStage,
-          topN: Number(payload.topN) || 1,
-          rejectRest: false,
-          deadlineAt: payload.deadlineAt,
-          directives: payload.directives,
-        }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error || "Failed to advance top candidates.");
-      const nextStage = String(json.nextStage || "").toUpperCase() as PipelineStageId;
-      const prettyNext = stageLabels[nextStage] || nextStage || "next stage";
-      if ((json.advanced || 0) > 0 && nextStage) {
-        setActionMessage(`Moved ${json.advanced} candidate(s) from ${stageLabels[fromStage]} to ${prettyNext}.`);
-        setActivity((prev) => [
-          {
-            at: new Date().toISOString(),
-            message: `Moved top ${payload.topN} candidates from ${stageLabels[fromStage]} to ${prettyNext}.`,
-          },
-          ...prev,
-        ].slice(0, 30));
-      } else {
-        const fallbackMessage = json.message || `No candidates moved from ${stageLabels[fromStage]}.`;
-        setActionMessage(fallbackMessage);
-        setActivity((prev) => [
-          { at: new Date().toISOString(), message: fallbackMessage },
-          ...prev,
-        ].slice(0, 30));
-      }
-      await loadCandidates(jobId);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to advance top candidates.";
-      setErrorMessage(message);
-    } finally {
-      setActionLoading(null);
-    }
   };
 
   const moveCandidate = async (applicationId: string, stage: PipelineStageId) => {
@@ -373,50 +265,6 @@ export default function ApplicantsDashboard() {
               </div>
             ))}
           </div>
-        </CardContent>
-      </Card>
-
-      <Card className="rounded-2xl border-slate-200/80 bg-white/95 shadow-sm">
-        <CardHeader>
-          <CardTitle>Smart Actions</CardTitle>
-          <CardDescription>
-            Run ATS, then advance top candidates through MCQ, Coding, and AI Interview with a guided modal.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <Button onClick={runAtsScreening} disabled={!jobId || actionLoading !== null} className="rounded-xl">
-            {actionLoading === "ats" ? "Running ATS..." : "Run ATS Screening"}
-          </Button>
-
-          <AdvanceStageModal
-            fromStage="ATS"
-            nextStage="MCQ"
-            max={stageBuckets.ATS.length}
-            disabled={!jobId || actionLoading !== null || stageBuckets.ATS.length === 0}
-            onConfirm={async (data) => advanceTopN("ATS", data)}
-          />
-          <AdvanceStageModal
-            fromStage="MCQ"
-            nextStage="CODING"
-            max={stageBuckets.MCQ.length}
-            disabled={!jobId || actionLoading !== null || stageBuckets.MCQ.length === 0}
-            onConfirm={async (data) => advanceTopN("MCQ", data)}
-          />
-          <AdvanceStageModal
-            fromStage="CODING"
-            nextStage="INTERVIEW"
-            max={stageBuckets.CODING.length}
-            disabled={!jobId || actionLoading !== null || stageBuckets.CODING.length === 0}
-            onConfirm={async (data) => advanceTopN("CODING", data)}
-          />
-          <Button
-            variant="outline"
-            onClick={runShortlist}
-            disabled={!jobId || actionLoading !== null}
-            className="rounded-xl"
-          >
-            {actionLoading === "advance" ? "Running shortlist..." : "Run Deadline Shortlist"}
-          </Button>
         </CardContent>
       </Card>
 

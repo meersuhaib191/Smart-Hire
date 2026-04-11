@@ -25,7 +25,7 @@ async function sweep(request: Request) {
       .select("id")
       .eq("status", "PUBLISHED")
       .lte("submission_deadline_at", nowIso)
-      .in("shortlist_status", ["pending", "failed"])
+      .or("shortlist_status.in.(pending,failed),shortlist_status.is.null")
       .order("submission_deadline_at", { ascending: true })
       .limit(20);
     if (error) {
