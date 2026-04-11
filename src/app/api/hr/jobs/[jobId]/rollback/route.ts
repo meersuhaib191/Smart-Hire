@@ -90,8 +90,8 @@ export async function POST(_request: Request, context: { params: Promise<{ jobId
         shortlist_status: "pending",
         shortlist_ran_at: null,
         shortlist_error: null,
-        shortlist_selected_count: null,
-        shortlist_total_submissions: null,
+        shortlist_selected_count: 0,
+        shortlist_total_submissions: 0,
         status: "PUBLISHED",
       })
       .eq("id", jobId);
