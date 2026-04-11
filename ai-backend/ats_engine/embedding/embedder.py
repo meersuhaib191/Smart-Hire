@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import OrderedDict
 import hashlib
+import os
 from typing import Iterable
 
 import numpy as np
@@ -38,6 +39,11 @@ class Embedder:
         self.cache = _VectorCache()
         self.model = None
         self.engine = "tfidf_fallback"
+        configured_engine = (os.getenv("ATS_EMBEDDER_ENGINE") or os.getenv("EMBEDDER_ENGINE") or "").strip().lower()
+        if configured_engine in {"tfidf", "tfidf_fallback"}:
+            self.model = None
+            self.engine = "tfidf_fallback"
+            return
         try:
             from sentence_transformers import SentenceTransformer  # type: ignore
 
