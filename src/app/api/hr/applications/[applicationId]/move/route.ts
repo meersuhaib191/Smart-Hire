@@ -2,8 +2,6 @@ import { NextResponse } from "next/server";
 import { createSupabaseAdmin } from "@/server/supabase/admin";
 import { requireAuthUser, requireHr } from "@/server/auth/session";
 import { createUserNotification } from "@/server/notifications/createNotification";
-import { generateMcqsFromContext } from "@/server/mcq/generator";
-
 type TargetStage = "ATS" | "MCQ" | "CODING" | "INTERVIEW" | "COMPLETE" | "REJECTED";
 
 const validStages: TargetStage[] = ["ATS", "MCQ", "CODING", "INTERVIEW", "COMPLETE", "REJECTED"];
@@ -76,47 +74,17 @@ async function resetMcqProgressForApplications(
   if (deleteSetError && !isMissingQuestionSetsTable(deleteSetError.message)) {
     throw new Error(`Failed to reset MCQ question set: ${deleteSetError.message}`);
   }
-}
 
-async function ensureMcqsForJob(admin: ReturnType<typeof createSupabaseAdmin>, jobId: string) {
-  const { count } = await admin
-    .from("mcq_questions")
-    .select("*", { count: "exact", head: true })
-    .eq("job_id", jobId);
-  if ((count || 0) >= 12) return;
-
-  const { data: job } = await admin
-    .from("jobs")
-    .select("title, description, job_skills(skill_name)")
-    .eq("id", jobId)
-    .maybeSingle();
-  if (!job) return;
-
-  const skills =
-    ((job.job_skills as Array<{ skill_name: string }> | null) || [])
-      .map((s) => s.skill_name)
-      .filter(Boolean);
-  const generated = await generateMcqsFromContext({
-    skills,
-    jobId,
-    count: Math.max(8, 12 - Number(count || 0)),
-    requireEngine: true,
-    jobTitle: String(job.title || ""),
-    jobDescription: String(job.description || ""),
-    difficultyHint: "challenging",
-  });
-  if (!generated.length) return;
-
-  await admin.from("mcq_questions").insert(
-    generated.map((q) => ({
-      job_id: jobId,
-      question_text: q.questionText,
-      options: q.options,
-      correct_option: q.correctOption,
-      skill_tag: q.skillTag || null,
-      difficulty: q.difficulty || "medium",
-    }))
-  );
+  const { error: deleteCandidateTestsError } = await admin
+    .from("candidate_tests")
+    .delete()
+    .in("application_id", applicationIds);
+  const missingCandidateTests =
+    (deleteCandidateTestsError?.message || "").includes('relation "candidate_tests" does not exist') ||
+    (deleteCandidateTestsError?.message || "").includes("Could not find the table");
+  if (deleteCandidateTestsError && !missingCandidateTests) {
+    throw new Error(`Failed to reset candidate test snapshot: ${deleteCandidateTestsError.message}`);
+  }
 }
 
 export async function POST(
@@ -178,7 +146,6 @@ export async function POST(
 
     if (targetStage === "MCQ") {
       await resetMcqProgressForApplications(admin, [applicationId]);
-      await ensureMcqsForJob(admin, String(app.job_id));
     }
 
     if (targetStage === "MCQ" || targetStage === "CODING" || targetStage === "INTERVIEW") {

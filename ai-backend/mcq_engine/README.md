@@ -86,8 +86,21 @@ docker compose -f docker-compose.mcq.yml up --build
 - `MCQ_DB_NAME`
 - `MCQ_REDIS_URL`
 - `MCQ_USE_IN_MEMORY` (set `1` to run without Mongo/Redis for local demos)
-- `OPENAI_API_KEY`
-- `OPENAI_MODEL`
+
+### LLM (OpenAI-compatible)
+
+The engine uses the **OpenAI Python SDK** against any **OpenAI-compatible** HTTP API.
+
+- **`MCQ_LLM_API_KEY`** or **`OPENAI_API_KEY`** — API key (required).
+- **`MCQ_LLM_BASE_URL`** or **`OPENAI_BASE_URL`** — optional. Default is OpenAI. For **Groq (free tier)**: `https://api.groq.com/openai/v1`
+- **`MCQ_LLM_MODEL`** or **`OPENAI_MODEL`** — model id. OpenAI default: `gpt-4o-mini`. Groq examples: `llama-3.1-8b-instant`, `llama-3.3-70b-versatile`
+
+Example (Groq): set `MCQ_LLM_BASE_URL=https://api.groq.com/openai/v1`, `MCQ_LLM_MODEL=llama-3.1-8b-instant`, and `MCQ_LLM_API_KEY` from [Groq Console](https://console.groq.com/).
+
+If generation fails with “0 valid questions”, lower batch size and/or raise output cap: `MCQ_LLM_BATCH_SIZE=8`, `MCQ_LLM_MAX_TOKENS=16384`, or use a larger Groq model (e.g. `llama-3.3-70b-versatile`).
+
+If you see **429** or **413 `rate_limit_exceeded`** (Groq uses both), the engine retries with backoff. Defaults favor free tier: `MCQ_LLM_BATCH_SIZE=8`, `MCQ_LLM_SLEEP_BETWEEN_BATCHES=2`, `MCQ_LLM_MAX_TOKENS=8192`. Tighten further with `MCQ_LLM_BATCH_SIZE=6` and `MCQ_LLM_SLEEP_BETWEEN_BATCHES=3` if needed.
+
 - `MCQ_POOL_THRESHOLD`
 - `MCQ_LLM_BATCH_SIZE`
 - `MCQ_OVERLAP_LIMIT`

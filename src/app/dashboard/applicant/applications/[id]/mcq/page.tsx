@@ -7,29 +7,8 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageLoadingSkeleton } from "@/components/ui/PageLoadingSkeleton";
-
-type Question = {
-  id: string;
-  question_text: string;
-  options: string[];
-  skill_tag: string | null;
-  difficulty: string | null;
-};
-
-type AttemptResult = {
-  score: number;
-  total_questions: number;
-  correct_answers: number;
-  submitted_at: string;
-};
-
-type ReviewAnswer = {
-  questionId: string;
-  questionText: string;
-  options: string[];
-  selectedOption: number;
-  isCorrect: boolean;
-};
+import { MCQTest } from "@/components/MCQTest";
+import { useCandidateTest } from "@/hooks/useCandidateTest";
 
 export default function McqPage() {
   const { id } = useParams<{ id: string }>();
@@ -37,59 +16,42 @@ export default function McqPage() {
   const storageKey = useMemo(() => `mcq-answers:${id || "unknown"}`, [id]);
   const tabId = useMemo(() => `${Date.now()}-${Math.random().toString(36).slice(2)}`, []);
   const lockKey = useMemo(() => `mcq-lock:${id || "unknown"}`, [id]);
-  const [loading, setLoading] = useState(true);
-  const [questions, setQuestions] = useState<Question[]>([]);
+
+  const {
+    loading,
+    starting,
+    needsStart,
+    questions,
+    hasSubmitted,
+    attempt,
+    reviewAnswers,
+    sessionToken,
+    message,
+    setMessage,
+    examSeconds,
+    timeLeft,
+    setTimeLeft,
+    hasExpired,
+    deadlineAt,
+    directives,
+    startTest,
+    setHasSubmitted,
+    setAttempt,
+    setReviewAnswers,
+  } = useCandidateTest(id);
+
   const [answers, setAnswers] = useState<Record<string, number>>({});
-  const [hasSubmitted, setHasSubmitted] = useState(false);
-  const [attempt, setAttempt] = useState<AttemptResult | null>(null);
-  const [reviewAnswers, setReviewAnswers] = useState<ReviewAnswer[]>([]);
-  const [sessionToken, setSessionToken] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [message, setMessage] = useState("");
   const [securityMessage, setSecurityMessage] = useState("");
   const [securityStrikes, setSecurityStrikes] = useState(0);
-  const [examSeconds, setExamSeconds] = useState(15 * 60);
-  const [timeLeft, setTimeLeft] = useState(15 * 60);
-  const [hasExpired, setHasExpired] = useState(false);
   const [blockedByOtherTab, setBlockedByOtherTab] = useState(false);
-  const [deadlineAt, setDeadlineAt] = useState<string | null>(null);
-  const [directives, setDirectives] = useState<string>("");
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
 
-  const examActive = !loading && !hasSubmitted && !hasExpired && questions.length > 0;
-  const currentQuestion = questions[currentQuestionIndex] || null;
+  const examActive = !loading && !hasSubmitted && !hasExpired && questions.length > 0 && !needsStart;
 
   useEffect(() => {
-    if (!id) return;
-    (async () => {
-      try {
-        const res = await fetch(`/api/mcq/session?applicationId=${id}`);
-        const json = await res.json();
-        if (!res.ok) {
-          setMessage(json.error || "Failed to load MCQ session.");
-          return;
-        }
-        setQuestions(json.questions || []);
-        setCurrentQuestionIndex(0);
-        setHasSubmitted(Boolean(json.hasSubmitted));
-        setAttempt(json.attempt || null);
-        setReviewAnswers(json.reviewAnswers || []);
-        setSessionToken(json.sessionToken || "");
-        const serverExamSeconds = Number(json.examSeconds || 15 * 60);
-        const serverRemaining = Number(json.remainingSeconds ?? serverExamSeconds);
-        setExamSeconds(serverExamSeconds);
-        setTimeLeft(serverRemaining);
-        setHasExpired(Boolean(json.hasExpired));
-        setDeadlineAt(json.deadlineAt || null);
-        setDirectives(String(json.directives || ""));
-        if (json.hasExpired) {
-          setMessage("MCQ exam time window has expired. Please contact HR or support.");
-        }
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [id]);
+    setCurrentQuestionIndex(0);
+  }, [questions]);
 
   useEffect(() => {
     if (loading || hasSubmitted || questions.length === 0) return;
@@ -103,7 +65,7 @@ export default function McqPage() {
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [hasSubmitted, loading, questions.length]);
+  }, [hasSubmitted, loading, questions.length, setTimeLeft]);
 
   useEffect(() => {
     if (!examActive) return;
@@ -256,59 +218,74 @@ export default function McqPage() {
     return `${mins}:${secs}`;
   }, [timeLeft]);
 
-  const submit = useCallback(async (auto = false) => {
-    if (!id || hasSubmitted || submitting || blockedByOtherTab) return;
-    if (!sessionToken) {
-      setMessage("MCQ session is invalid or expired. Please reload.");
-      return;
-    }
-
-    const payloadAnswers = questions
-      .filter((q) => Number.isInteger(answers[q.id]))
-      .map((q) => ({ questionId: q.id, selectedOption: answers[q.id] }));
-
-    if (!payloadAnswers.length && !auto) {
-      setMessage("Please answer at least one question before submitting.");
-      return;
-    }
-    if (!auto && payloadAnswers.length !== questions.length) {
-      setMessage("Please answer all questions before submitting.");
-      return;
-    }
-
-    setSubmitting(true);
-    setMessage("");
-    try {
-      const res = await fetch("/api/mcq/submit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ applicationId: id, answers: payloadAnswers, sessionToken }),
-      });
-      const json = await res.json();
-      if (res.ok || res.status === 409) {
-        setHasSubmitted(true);
-        if (json.result) {
-          setAttempt({
-            score: json.result.score,
-            total_questions: json.result.totalQuestions,
-            correct_answers: json.result.correctAnswers,
-            submitted_at: new Date().toISOString(),
-          });
-        }
-        if (json.reviewAnswers) {
-          setReviewAnswers(json.reviewAnswers);
-        }
+  const submit = useCallback(
+    async (auto = false) => {
+      if (!id || hasSubmitted || submitting || blockedByOtherTab) return;
+      if (!sessionToken) {
+        setMessage("MCQ session is invalid or expired. Please reload.");
         return;
       }
-      setMessage(json.error || "Failed to submit MCQ answers.");
-    } finally {
-      setSubmitting(false);
-    }
-  }, [answers, blockedByOtherTab, hasSubmitted, id, questions, sessionToken, submitting]);
+
+      const payloadAnswers = questions
+        .filter((q) => Number.isInteger(answers[q.id]))
+        .map((q) => ({ questionId: q.id, selectedOption: answers[q.id] }));
+
+      if (!payloadAnswers.length && !auto) {
+        setMessage("Please answer at least one question before submitting.");
+        return;
+      }
+      if (!auto && payloadAnswers.length !== questions.length) {
+        setMessage("Please answer all questions before submitting.");
+        return;
+      }
+
+      setSubmitting(true);
+      setMessage("");
+      try {
+        const res = await fetch("/api/mcq/submit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ applicationId: id, answers: payloadAnswers, sessionToken }),
+        });
+        const json = await res.json();
+        if (res.ok || res.status === 409) {
+          setHasSubmitted(true);
+          if (json.result) {
+            setAttempt({
+              score: json.result.score,
+              total_questions: json.result.totalQuestions,
+              correct_answers: json.result.correctAnswers,
+              submitted_at: new Date().toISOString(),
+            });
+          }
+          if (json.reviewAnswers) {
+            setReviewAnswers(json.reviewAnswers);
+          }
+          return;
+        }
+        setMessage(json.error || "Failed to submit MCQ answers.");
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    [
+      answers,
+      blockedByOtherTab,
+      hasSubmitted,
+      id,
+      questions,
+      sessionToken,
+      setAttempt,
+      setHasSubmitted,
+      setMessage,
+      setReviewAnswers,
+      submitting,
+    ]
+  );
 
   useEffect(() => {
     if (!loading && !hasSubmitted && !hasExpired && questions.length > 0 && timeLeft === 0) {
-      submit(true);
+      void submit(true);
     }
   }, [hasExpired, hasSubmitted, loading, questions.length, submit, timeLeft]);
 
@@ -340,7 +317,7 @@ export default function McqPage() {
         <button type="button" onClick={goBackToApplication} className="text-sm font-medium text-slate-500 hover:text-slate-900">
           ← Back to Application
         </button>
-        {!hasSubmitted ? (
+        {examActive ? (
           <Badge variant={timeLeft <= 60 ? "error" : "secondary"}>Time Left: {formattedTime}</Badge>
         ) : null}
       </div>
@@ -387,77 +364,38 @@ export default function McqPage() {
               title="Session expired before submission"
               description="Please contact HR to reopen this stage."
             />
+          ) : needsStart ? (
+            <div className="space-y-4">
+              <p className="text-sm text-slate-600">
+                When you start, we generate a unique 10-question test from the job requirements and your experience level. You
+                can only take this test once for this application.
+              </p>
+              {message ? <p className="text-sm text-red-600">{message}</p> : null}
+              <Button onClick={() => void startTest()} disabled={starting}>
+                {starting ? "Starting..." : "Start MCQ Test"}
+              </Button>
+            </div>
           ) : questions.length === 0 ? (
             <EmptyState
-              title="No MCQ questions available yet"
-              description={message || "This assessment has not been generated for the selected job."}
+              title={message && /quota|AI provider|MCQ service|rate-limit|Groq/i.test(message) ? "Assessment temporarily unavailable" : "No MCQ questions available yet"}
+              description={message || "This assessment could not be loaded. Try again or contact support."}
             />
           ) : (
-            <>
-              <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
-                Answer all questions and submit once. Timer: {Math.floor(examSeconds / 60)} min. Your pipeline stage updates automatically.
-              </p>
-              {deadlineAt || directives ? (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
-                  {deadlineAt ? (
-                    <p className="text-xs font-medium text-amber-800">
-                      HR deadline: {new Date(deadlineAt).toLocaleString()}
-                    </p>
-                  ) : null}
-                  {directives ? <p className="mt-1 text-xs text-amber-700">{directives}</p> : null}
-                </div>
-              ) : null}
-              {currentQuestion ? (
-                <div className="rounded-xl border border-slate-200 p-4 shadow-sm space-y-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-medium">
-                      Q{currentQuestionIndex + 1} / {questions.length}. {currentQuestion.question_text}
-                    </p>
-                    {currentQuestion.skill_tag ? <Badge variant="outline">{currentQuestion.skill_tag}</Badge> : null}
-                  </div>
-                  <div className="space-y-2">
-                    {currentQuestion.options.map((option, idx) => (
-                      <label key={idx} className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm transition hover:bg-slate-50">
-                        <input
-                          type="radio"
-                          name={`q-${currentQuestion.id}`}
-                          checked={answers[currentQuestion.id] === idx}
-                          onChange={() => setAnswers((prev) => ({ ...prev, [currentQuestion.id]: idx }))}
-                        />
-                        <span>{option}</span>
-                      </label>
-                    ))}
-                  </div>
-                  <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                    <Button
-                      variant="outline"
-                      onClick={() => setCurrentQuestionIndex((prev) => Math.max(0, prev - 1))}
-                      disabled={currentQuestionIndex === 0}
-                    >
-                      Previous
-                    </Button>
-                    {currentQuestionIndex < questions.length - 1 ? (
-                      <Button
-                        onClick={() => setCurrentQuestionIndex((prev) => Math.min(questions.length - 1, prev + 1))}
-                      >
-                        Next
-                      </Button>
-                    ) : (
-                      <Button onClick={() => submit(false)} disabled={submitting}>
-                        {submitting ? "Submitting..." : "Submit MCQ"}
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              ) : null}
-              {message ? <p className="text-sm text-red-600">{message}</p> : null}
-              {securityMessage ? <p className="text-sm text-amber-700">{securityMessage}</p> : null}
-              {!hasSubmitted ? (
-                <p className="text-xs text-slate-500">
-                  Security checks active. Tab switches recorded: {securityStrikes}/3.
-                </p>
-              ) : null}
-            </>
+            <MCQTest
+              questions={questions}
+              currentQuestionIndex={currentQuestionIndex}
+              onQuestionIndexChange={setCurrentQuestionIndex}
+              answers={answers}
+              onAnswerChange={(qid, idx) => setAnswers((prev) => ({ ...prev, [qid]: idx }))}
+              onSubmit={() => void submit(false)}
+              submitting={submitting}
+              message={message}
+              securityMessage={securityMessage}
+              securityStrikes={securityStrikes}
+              examSeconds={examSeconds}
+              deadlineAt={deadlineAt}
+              directives={directives}
+            />
           )}
         </CardContent>
       </Card>

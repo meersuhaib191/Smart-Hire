@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
@@ -46,7 +47,7 @@ class QuestionService:
         )
         pool = self._fetch_candidate_pool(payload.job_id, parsed_jd.topics, payload.company_tier)
 
-        for _ in range(3):
+        for round_idx in range(3):
             history_sets = self._fetch_history_sets(payload.job_id)
             recent_ids = self._fetch_recent_ids(payload.job_id)
             selected = self._randomization_service.select_questions(
@@ -59,11 +60,14 @@ class QuestionService:
             if selected:
                 return self._finalize_selection(payload.job_id, payload.candidate_id, selected)
 
+            if round_idx > 0 and settings.llm_sleep_between_batches > 0:
+                time.sleep(settings.llm_sleep_between_batches)
+
             self._generate_more_questions(
                 payload.job_id,
                 payload.job_description,
                 parsed_jd.topics,
-                batch_size=20,
+                batch_size=settings.llm_generation_batch_size,
                 company_tier=payload.company_tier,
                 job_role=payload.job_role,
                 experience_level=experience_level,
@@ -109,7 +113,14 @@ class QuestionService:
             return
 
         zero_insert_rounds = 0
+        first_batch = True
         while count < settings.question_pool_threshold:
+            if (
+                not first_batch
+                and settings.llm_sleep_between_batches > 0
+            ):
+                time.sleep(settings.llm_sleep_between_batches)
+            first_batch = False
             generated = self._generate_more_questions(
                 job_id,
                 job_description,

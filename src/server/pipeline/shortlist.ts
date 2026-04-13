@@ -1,8 +1,6 @@
 import { createSupabaseAdmin } from "@/server/supabase/admin";
 import { runAtsScreeningForJob } from "@/server/ats/screening";
 import { createUserNotification } from "@/server/notifications/createNotification";
-import { generateMcqsFromContext } from "@/server/mcq/generator";
-
 const SHORTLIST_PERCENT = 0.2;
 const MCQ_WINDOW_HOURS = Number(process.env.SHORTLIST_MCQ_WINDOW_HOURS || 72);
 
@@ -74,41 +72,6 @@ async function updateJobShortlistState(
     );
   }
   throw new Error(error.message);
-}
-
-async function ensureAdvancedMcqPool(admin: ReturnType<typeof createSupabaseAdmin>, job: JobShortlistRow) {
-  const minimum = 20;
-  const { count } = await admin
-    .from("mcq_questions")
-    .select("*", { count: "exact", head: true })
-    .eq("job_id", job.id);
-  if ((count || 0) >= minimum) return;
-
-  const skills =
-    ((job.job_skills as Array<{ skill_name: string }> | null) || [])
-      .map((s) => s.skill_name)
-      .filter(Boolean);
-  const generated = await generateMcqsFromContext({
-    skills,
-    jobId: job.id,
-    count: Math.max(10, minimum - Number(count || 0)),
-    requireEngine: true,
-    jobTitle: String(job.title || ""),
-    jobDescription: String(job.description || ""),
-    difficultyHint: "challenging",
-  });
-  if (!generated.length) return;
-
-  await admin.from("mcq_questions").insert(
-    generated.map((q) => ({
-      job_id: job.id,
-      question_text: q.questionText,
-      options: q.options,
-      correct_option: q.correctOption,
-      skill_tag: q.skillTag || null,
-      difficulty: "hard",
-    }))
-  );
 }
 
 export async function runDeadlineShortlistForJob(
@@ -302,8 +265,6 @@ export async function runDeadlineShortlistForJob(
       const { error: rankingErr } = await admin.from("rankings").upsert(rankingRows, { onConflict: "application_id" });
       if (rankingErr) throw new Error(rankingErr.message);
     }
-
-    await ensureAdvancedMcqPool(admin, job);
 
     await Promise.all(
       selected.map((row) =>

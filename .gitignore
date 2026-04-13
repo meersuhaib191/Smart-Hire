@@ -28,6 +28,7 @@
 *.log
 *.txt
 ai-backend/venv/
+ai-backend/.venv/
 __pycache__/
 *.pyc
 *.pyo

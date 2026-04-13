@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdmin } from "@/server/supabase/admin";
 import { requireAuthUser, requireHr } from "@/server/auth/session";
-import { generateMcqsFromContext } from "@/server/mcq/generator";
 import { buildDefaultChallenge } from "@/server/coding/seedChallenge";
 
 type CreateJobBody = {
@@ -277,26 +276,6 @@ export async function POST(request: Request) {
         { onConflict: "job_id" }
       );
 
-      const mcqs = await generateMcqsFromContext({
-        skills,
-        count: 12,
-        jobId: createdJob.id,
-        requireEngine: true,
-        jobTitle: createdJob.title,
-        jobDescription: body.description,
-        difficultyHint: "challenging",
-      });
-      await admin.from("mcq_questions").insert(
-        mcqs.map((q) => ({
-          job_id: createdJob.id,
-          question_text: q.questionText,
-          options: q.options,
-          correct_option: q.correctOption,
-          skill_tag: q.skillTag || null,
-          difficulty: q.difficulty || "medium",
-        }))
-      );
-
       const challenge = buildDefaultChallenge(createdJob.title, skills);
       const { data: createdChallenge } = await admin
         .from("coding_challenges")
@@ -326,7 +305,6 @@ export async function POST(request: Request) {
         success: true,
         jobId: createdJob.id,
         seeded: {
-          mcqQuestions: mcqs.length,
           codingChallenge: Boolean(createdChallenge?.id),
         },
       });
@@ -354,27 +332,6 @@ export async function POST(request: Request) {
         interview_weight: weights.interview_weight,
       },
       { onConflict: "job_id" }
-    );
-
-    // Auto-seed MCQ pool
-    const mcqs = await generateMcqsFromContext({
-      skills,
-      count: 12,
-      jobId: job.id,
-      requireEngine: true,
-      jobTitle: job.title,
-      jobDescription: body.description,
-      difficultyHint: "challenging",
-    });
-    await admin.from("mcq_questions").insert(
-      mcqs.map((q) => ({
-        job_id: job.id,
-        question_text: q.questionText,
-        options: q.options,
-        correct_option: q.correctOption,
-        skill_tag: q.skillTag || null,
-        difficulty: q.difficulty || "medium",
-      }))
     );
 
     // Auto-seed coding challenge + hidden tests
@@ -407,7 +364,6 @@ export async function POST(request: Request) {
       success: true,
       jobId: job.id,
       seeded: {
-        mcqQuestions: mcqs.length,
         codingChallenge: Boolean(createdChallenge?.id),
       },
     });

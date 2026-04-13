@@ -47,7 +47,8 @@ def health() -> dict:
     return {
         "status": "ok",
         "db": settings.mongo_db_name,
-        "model": settings.openai_model,
+        "model": settings.llm_model,
+        "llm_base_url": settings.llm_base_url or "https://api.openai.com/v1",
         "pool_threshold": settings.question_pool_threshold,
     }
 

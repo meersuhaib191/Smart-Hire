@@ -6,7 +6,9 @@
     "dev": "next dev --webpack",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "mcq:dev": "powershell -NoProfile -ExecutionPolicy Bypass -File ./ai-backend/run-mcq.ps1",
+    "mcq:docker": "cd ai-backend && docker compose -f docker-compose.mcq.yml --env-file ../.env.local up --build"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

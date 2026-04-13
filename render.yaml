@@ -1,0 +1,32 @@
+# Blueprint: deploy only the MCQ engine (FastAPI).
+# 1. Create a MongoDB database (e.g. MongoDB Atlas) and a Redis instance (e.g. Upstash).
+# 2. In the Render dashboard, set secrets: MCQ_MONGO_URI, MCQ_REDIS_URL, and an LLM key.
+#    For Groq (free tier): MCQ_LLM_BASE_URL=https://api.groq.com/openai/v1, MCQ_LLM_MODEL=llama-3.1-8b-instant, MCQ_LLM_API_KEY=... (or use OPENAI_API_KEY).
+#    For OpenAI: OPENAI_API_KEY and optionally OPENAI_MODEL.
+# 3. Set MCQ_ALLOWED_ORIGINS to your Next.js origin(s), comma-separated (e.g. https://app.example.com).
+# 4. In Vercel / your Next host, set MCQ_ENGINE_URL to this service URL (https://<service>.onrender.com).
+version: "1"
+services:
+  - type: web
+    name: mcq-engine
+    env: docker
+    dockerfilePath: ./ai-backend/mcq_engine/Dockerfile
+    dockerContext: ./ai-backend
+    healthCheckPath: /health
+    envVars:
+      - key: MCQ_DB_NAME
+        value: mcq_engine
+      - key: MCQ_MONGO_URI
+        sync: false
+      - key: MCQ_REDIS_URL
+        sync: false
+      - key: MCQ_LLM_API_KEY
+        sync: false
+      - key: MCQ_LLM_BASE_URL
+        sync: false
+      - key: MCQ_LLM_MODEL
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: MCQ_ALLOWED_ORIGINS
+        sync: false

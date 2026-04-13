@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import json
-import random
 import re
+import time
 from typing import Any
 
 from ..config import settings
@@ -10,14 +10,57 @@ from ..models.schemas import Difficulty, ExperienceLevel, MCQQuestion, ParsedJob
 from ..utils.hashing import question_hash
 
 try:
-    from openai import OpenAI
+    from openai import APIStatusError, OpenAI, RateLimitError
 except Exception:  # pragma: no cover - optional dependency at runtime
+    APIStatusError = Exception  # type: ignore[misc, assignment]
     OpenAI = None
+    RateLimitError = Exception  # type: ignore[misc, assignment]
 
 
 class LLMService:
     def __init__(self) -> None:
-        self._client = OpenAI(api_key=settings.openai_api_key) if OpenAI and settings.openai_api_key else None
+        if not OpenAI or not settings.llm_api_key:
+            self._client = None
+        else:
+            kwargs: dict[str, str] = {"api_key": settings.llm_api_key}
+            if settings.llm_base_url:
+                kwargs["base_url"] = settings.llm_base_url.rstrip("/")
+            self._client = OpenAI(**kwargs)
+
+    @staticmethod
+    def _is_transient_provider_throttle(exc: BaseException) -> bool:
+        """Groq often uses HTTP 413 + rate_limit_exceeded (not only 429). Duck-type status_code."""
+        code = getattr(exc, "status_code", None)
+        if code == 429:
+            return True
+        if code == 413:
+            msg = str(exc).lower()
+            return "rate" in msg or "limit" in msg or "exceed" in msg
+        return False
+
+    def _create_chat_completion(self, **kwargs: Any):
+        """Groq/OpenAI may return 429 or 413 (rate_limit_exceeded); retry with backoff."""
+        assert self._client is not None
+        max_retries = 8
+        last_exc: BaseException | None = None
+        for attempt in range(max_retries):
+            try:
+                return self._client.chat.completions.create(**kwargs)
+            except RateLimitError as exc:
+                last_exc = exc
+            except APIStatusError as exc:
+                if self._is_transient_provider_throttle(exc):
+                    last_exc = exc
+                else:
+                    raise
+            if attempt < max_retries - 1:
+                base = min(2**attempt, 60)
+                if getattr(last_exc, "status_code", None) == 413:
+                    base = max(base, 4)
+                time.sleep(base)
+            elif last_exc is not None:
+                raise last_exc
+        assert False, "unreachable"
 
     def generate_questions(
         self,
@@ -34,14 +77,10 @@ class LLMService:
         target_total = medium_count + hard_count
 
         if not self._client:
-            return self._fallback_questions(
-                parsed_jd,
-                medium_count,
-                hard_count,
-                excluded_hashes,
-                job_role=job_role,
-                experience_level=experience_level,
-                seed=seed,
+            raise RuntimeError(
+                "No LLM API key on the MCQ engine. Set MCQ_LLM_API_KEY or OPENAI_API_KEY. "
+                "For Groq (free tier), also set MCQ_LLM_BASE_URL=https://api.groq.com/openai/v1 "
+                "and MCQ_LLM_MODEL=llama-3.1-8b-instant (or another Groq model id)."
             )
 
         prompt = self._build_prompt(
@@ -54,21 +93,35 @@ class LLMService:
             experience_level=experience_level,
             seed=seed,
         )
-        response = self._client.chat.completions.create(
-            model=settings.openai_model,
-            temperature=0.8,
-            messages=[
-                {"role": "system", "content": "You create practical, scenario-based technical MCQs in strict JSON."},
-                {"role": "user", "content": prompt},
-            ],
-        )
-        raw = response.choices[0].message.content or "[]"
-        parsed = self._extract_json_array(raw)
-        questions = self._sanitize_questions(parsed, excluded_hashes)
+        last_err: str | None = None
+        for attempt, temperature in enumerate((0.75, 0.35), start=1):
+            response = self._create_chat_completion(
+                model=settings.llm_model,
+                temperature=temperature,
+                max_tokens=settings.llm_max_output_tokens,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "You output ONLY valid JSON. No markdown fences around the JSON. "
+                            "Each MCQ must include difficulty_level medium or hard and a short explanation."
+                        ),
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+            )
+            raw = response.choices[0].message.content or "[]"
+            parsed = self._extract_question_rows(raw)
+            questions = self._sanitize_questions(parsed, excluded_hashes)
+            if len(questions) >= target_total:
+                break
+            last_err = f"attempt {attempt}: parsed {len(parsed)} rows, {len(questions)} valid (need {target_total})"
 
         if len(questions) < target_total:
-            questions.extend(
-                self._fallback_questions(parsed_jd, medium_count, hard_count, excluded_hashes | {q.hash_id for q in questions})
+            raise RuntimeError(
+                f"LLM returned only {len(questions)} valid question(s); need {target_total}. "
+                f"{last_err or ''} "
+                "If using Groq, try MCQ_LLM_BATCH_SIZE=8, MCQ_LLM_MAX_TOKENS=16384, or a larger model."
             )
 
         medium = [q for q in questions if q.difficulty == "medium"][:medium_count]
@@ -149,66 +202,120 @@ class LLMService:
                     "Keep difficulty and skill coverage consistent.",
                 ],
                 "constraints": [
-                    "Exactly 10 questions",
+                    f"Exactly {medium_count + hard_count} questions in the output array",
                     "One correct answer only",
-                    "No explanations",
+                    "Each question must include a short explanation (one sentence)",
                     "edge cases",
                 ],
             },
             "avoid_hashes": list(excluded_hashes)[:120],
-            "output_format": "Return only a JSON array. No markdown.",
+            "output_format": (
+                'Return a JSON array only. Example shape: [{"question":"...","options":["a","b","c","d"],'
+                '"correct_answer":"a","difficulty_level":"medium","skill_tag":"python","explanation":"..."}]'
+            ),
         }
         return (
             "Generate unique, high-quality technical MCQs for ATS assessments.\n"
             "All questions must be role-relevant and scenario-based.\n"
-            "Return strict JSON only.\n"
+            "Return strict JSON only (no markdown code fences).\n"
             f"{json.dumps(payload, ensure_ascii=True)}"
         )
 
     @staticmethod
-    def _extract_json_array(raw: str) -> list[dict[str, Any]]:
-        text = raw.strip()
-        try:
-            parsed = json.loads(text)
-            return parsed if isinstance(parsed, list) else []
-        except json.JSONDecodeError:
-            match = re.search(r"\[.*\]", text, flags=re.DOTALL)
-            if not match:
-                return []
+    def _strip_code_fences(text: str) -> str:
+        t = text.strip()
+        if "```" not in t:
+            return t
+        m = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", t, flags=re.IGNORECASE)
+        return m.group(1).strip() if m else t
+
+    @classmethod
+    def _extract_question_rows(cls, raw: str) -> list[dict[str, Any]]:
+        text = cls._strip_code_fences(raw)
+        for candidate in (text, raw.strip()):
+            if not candidate:
+                continue
+            try:
+                parsed = json.loads(candidate)
+                rows = cls._coerce_to_row_list(parsed)
+                if rows:
+                    return rows
+            except json.JSONDecodeError:
+                continue
+        # Last resort: bracket slice (may fail on nested arrays)
+        match = re.search(r"\[[\s\S]*\]", text)
+        if match:
             try:
                 parsed = json.loads(match.group(0))
-                return parsed if isinstance(parsed, list) else []
+                return cls._coerce_to_row_list(parsed)
             except json.JSONDecodeError:
-                return []
+                pass
+        return []
+
+    @staticmethod
+    def _coerce_to_row_list(parsed: Any) -> list[dict[str, Any]]:
+        if isinstance(parsed, list):
+            return [x for x in parsed if isinstance(x, dict)]
+        if isinstance(parsed, dict):
+            for key in ("questions", "mcqs", "items", "data", "results"):
+                v = parsed.get(key)
+                if isinstance(v, list):
+                    return [x for x in v if isinstance(x, dict)]
+        return []
 
     def _sanitize_questions(self, rows: list[dict[str, Any]], excluded_hashes: set[str]) -> list[MCQQuestion]:
         clean: list[MCQQuestion] = []
         for row in rows:
             try:
-                question = str(row.get("question", "")).strip()
-                raw_options = row.get("options", [])
+                question = str(row.get("question", row.get("q", ""))).strip()
+                if len(question) < 10:
+                    continue
+                raw_options = row.get("options", row.get("choices", []))
                 options: list[str]
                 if isinstance(raw_options, dict):
                     options = [str(raw_options.get(k, "")).strip() for k in ["A", "B", "C", "D"]]
+                elif isinstance(raw_options, list):
+                    options = [str(x).strip() for x in raw_options[:4]]
                 else:
-                    options = [str(x).strip() for x in raw_options if str(x).strip()]
-                if len(options) != 4:
                     continue
-                correct = str(row.get("correct_answer", "")).strip()
+                while len(options) < 4:
+                    options.append("")
+                options = options[:4]
+                if not all(options):
+                    continue
+                raw_correct = row.get("correct_answer", row.get("answer", row.get("correct")))
+                correct: str
+                if isinstance(raw_correct, int) and 0 <= raw_correct <= 3:
+                    correct = options[raw_correct]
+                else:
+                    correct = str(raw_correct or "").strip()
                 if correct in {"A", "B", "C", "D"}:
                     correct_index = {"A": 0, "B": 1, "C": 2, "D": 3}[correct]
                     correct = options[correct_index]
-                explanation = str(row.get("explanation", "")).strip()
+                elif correct.isdigit() and len(correct) == 1:
+                    idx = int(correct)
+                    if 0 <= idx <= 3:
+                        correct = options[idx]
+                if correct not in options:
+                    match_opt = next((o for o in options if o.lower() == correct.lower()), None)
+                    if match_opt:
+                        correct = match_opt
+                    else:
+                        continue
+                explanation = str(row.get("explanation", row.get("rationale", ""))).strip()
                 if not explanation:
                     explanation = "Scenario-based technical judgment."
                 raw_difficulty = str(row.get("difficulty", row.get("difficulty_level", "medium"))).strip().lower()
                 difficulty_map = {
                     "basic": "medium",
+                    "easy": "medium",
+                    "beginner": "medium",
                     "intermediate": "medium",
                     "medium": "medium",
                     "advanced": "hard",
                     "difficult": "hard",
                     "hard": "hard",
+                    "expert": "hard",
                 }
                 difficulty = difficulty_map.get(raw_difficulty)
                 if not difficulty:
@@ -231,134 +338,4 @@ class LLMService:
             except Exception:
                 continue
         return clean
-
-    def _fallback_questions(
-        self,
-        parsed_jd: ParsedJobDescription,
-        medium_count: int,
-        hard_count: int,
-        excluded_hashes: set[str],
-        job_role: str | None = None,
-        experience_level: ExperienceLevel | None = None,
-        seed: str | None = None,
-    ) -> list[MCQQuestion]:
-        topics = self._role_skill_pool(job_role, parsed_jd)
-        generated: list[MCQQuestion] = []
-        generated_ids: set[str] = set()
-        plan: list[Difficulty] = ["medium"] * medium_count + ["hard"] * hard_count
-        rng = random.Random(str(seed or "fallback"))
-
-        for difficulty in plan:
-            attempts = 0
-            while attempts < 20:
-                topic = rng.choice(topics)
-                question, options, answer, explanation = self._template_question(topic, difficulty, rng)
-                hash_id = question_hash(question, options, difficulty, topic)
-                attempts += 1
-                if hash_id in excluded_hashes or hash_id in generated_ids:
-                    continue
-                generated.append(
-                    MCQQuestion(
-                        question=question,
-                        options=options,
-                        correct_answer=answer,
-                        explanation=explanation,
-                        difficulty=difficulty,
-                        topic=topic,
-                        hash_id=hash_id,
-                    )
-                )
-                generated_ids.add(hash_id)
-                break
-        return generated
-
-    @staticmethod
-    def _template_question(topic: str, difficulty: Difficulty, rng: random.Random) -> tuple[str, list[str], str, str]:
-        if difficulty == "medium":
-            systems = ["REST API gateway", "event consumer", "batch ingestion job", "webhook processor"]
-            scenarios = [
-                "latency spikes after a release",
-                "error rates increase only for one tenant",
-                "background jobs start missing SLA windows",
-                "API p95 doubles during peak traffic",
-            ]
-            constraints = ["without impacting current traffic", "within a 15-minute incident window", "before the next deploy", "while preserving auditability"]
-            action = rng.choice(
-                [
-                    "best isolates the root cause without rolling back immediately",
-                    "gives the strongest first diagnostic signal",
-                    "most safely narrows down whether the issue is code or infrastructure",
-                    "provides the fastest evidence for a targeted fix",
-                ]
-            )
-            question = (
-                f"In a production {rng.choice(systems)} using {topic}, {rng.choice(scenarios)} {rng.choice(constraints)}. "
-                f"Which first step {action}?"
-            )
-            options = rng.choice(
-                [
-                    [
-                        "Compare request traces and error rates before/after deployment for affected endpoints",
-                        "Increase server CPU limits and wait for stabilization",
-                        "Restart all services to clear stale processes",
-                        "Disable monitoring temporarily to reduce overhead",
-                    ],
-                    [
-                        "Correlate deployment diff with endpoint-level logs, traces, and recent config changes",
-                        "Scale replicas by 2x and observe if alarms stop",
-                        "Purge cache cluster data to reset state",
-                        "Raise request timeouts for all clients",
-                    ],
-                ]
-            )
-            correct = options[0]
-            explanation = "Tracing and comparative telemetry validates whether code-path changes introduced regressions."
-            return question, options, correct, explanation
-
-        failures = [
-            "intermittent data corruption appears under concurrency",
-            "duplicate records appear only during retries",
-            "cross-region writes occasionally overwrite newer values",
-            "parallel workers produce non-deterministic state",
-        ]
-        contexts = ["during blue/green deploys", "under traffic burst conditions", "while replaying failed events", "across multi-region writes"]
-        question = (
-            f"Your team adds {topic} to a high-traffic pipeline, and {rng.choice(failures)} {rng.choice(contexts)}. "
-            "What is the most robust fix?"
-        )
-        options = rng.choice(
-            [
-                [
-                    "Introduce idempotency keys and transactional boundaries around write operations",
-                    "Increase retry count for all failed operations",
-                    "Scale worker replicas to reduce queue wait times",
-                    "Switch logs to async mode so workers process faster",
-                ],
-                [
-                    "Enforce optimistic locking/version checks plus idempotent handlers on write paths",
-                    "Shard the queue by candidate ID to reduce contention",
-                    "Disable retries to avoid duplicates",
-                    "Route writes through read replicas for lower latency",
-                ],
-            ]
-        )
-        correct = options[0]
-        explanation = "Idempotency plus transactional guarantees prevents duplicate and partial writes under concurrent execution."
-        return question, options, correct, explanation
-
-    @staticmethod
-    def _role_skill_pool(job_role: str | None, parsed_jd: ParsedJobDescription) -> list[str]:
-        role = (job_role or "").lower()
-        if "front" in role:
-            base = ["html/css", "javascript", "react", "debugging", "browser behavior", "async ui state"]
-        elif "full" in role:
-            base = ["react", "javascript", "apis", "databases", "authentication", "integration debugging"]
-        elif "back" in role:
-            base = ["apis", "databases", "authentication", "server logic", "error handling", "concurrency"]
-        else:
-            base = []
-        jd_topics = parsed_jd.topics or parsed_jd.skills or []
-        combined = [*base, *jd_topics]
-        unique = [topic for topic in dict.fromkeys([t.strip().lower() for t in combined if t.strip()])]
-        return unique or ["apis", "databases", "debugging", "integration"]
 
