@@ -1,4 +1,4 @@
-# Smart Hire AI: End-to-End AI Recruitment Platform
+# Smart Hire AI: End-to-End AI Recruitment Platform 
 
 ## Abstract
 
