@@ -92,6 +92,7 @@ async function ensureAdvancedMcqPool(admin: ReturnType<typeof createSupabaseAdmi
     skills,
     jobId: job.id,
     count: Math.max(10, minimum - Number(count || 0)),
+    requireEngine: true,
     jobTitle: String(job.title || ""),
     jobDescription: String(job.description || ""),
     difficultyHint: "challenging",

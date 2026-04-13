@@ -46,14 +46,18 @@ export default function McqPage() {
   const [sessionToken, setSessionToken] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
+  const [securityMessage, setSecurityMessage] = useState("");
+  const [securityStrikes, setSecurityStrikes] = useState(0);
   const [examSeconds, setExamSeconds] = useState(15 * 60);
   const [timeLeft, setTimeLeft] = useState(15 * 60);
   const [hasExpired, setHasExpired] = useState(false);
   const [blockedByOtherTab, setBlockedByOtherTab] = useState(false);
   const [deadlineAt, setDeadlineAt] = useState<string | null>(null);
   const [directives, setDirectives] = useState<string>("");
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
 
   const examActive = !loading && !hasSubmitted && !hasExpired && questions.length > 0;
+  const currentQuestion = questions[currentQuestionIndex] || null;
 
   useEffect(() => {
     if (!id) return;
@@ -66,6 +70,7 @@ export default function McqPage() {
           return;
         }
         setQuestions(json.questions || []);
+        setCurrentQuestionIndex(0);
         setHasSubmitted(Boolean(json.hasSubmitted));
         setAttempt(json.attempt || null);
         setReviewAnswers(json.reviewAnswers || []);
@@ -210,6 +215,39 @@ export default function McqPage() {
     };
   }, [examActive, lockKey, tabId]);
 
+  useEffect(() => {
+    if (!examActive || blockedByOtherTab) return;
+
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        setSecurityStrikes((prev) => prev + 1);
+        setSecurityMessage("Tab switch detected. Keep this assessment tab active.");
+      }
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      const key = event.key.toLowerCase();
+      if ((event.ctrlKey || event.metaKey) && ["c", "v", "x", "a", "p"].includes(key)) {
+        event.preventDefault();
+        setSecurityMessage("Copy/paste and print shortcuts are disabled during the MCQ round.");
+      }
+    };
+
+    const onContextMenu = (event: MouseEvent) => {
+      event.preventDefault();
+      setSecurityMessage("Right-click is disabled during the MCQ round.");
+    };
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("contextmenu", onContextMenu);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("contextmenu", onContextMenu);
+    };
+  }, [blockedByOtherTab, examActive]);
+
   const formattedTime = useMemo(() => {
     const mins = Math.floor(timeLeft / 60)
       .toString()
@@ -229,7 +267,7 @@ export default function McqPage() {
       .filter((q) => Number.isInteger(answers[q.id]))
       .map((q) => ({ questionId: q.id, selectedOption: answers[q.id] }));
 
-    if (!payloadAnswers.length) {
+    if (!payloadAnswers.length && !auto) {
       setMessage("Please answer at least one question before submitting.");
       return;
     }
@@ -273,6 +311,14 @@ export default function McqPage() {
       submit(true);
     }
   }, [hasExpired, hasSubmitted, loading, questions.length, submit, timeLeft]);
+
+  useEffect(() => {
+    if (!examActive || hasSubmitted) return;
+    if (securityStrikes >= 3) {
+      setSecurityMessage("Multiple tab-switch events detected. Auto-submitting your current answers.");
+      void submit(true);
+    }
+  }, [examActive, hasSubmitted, securityStrikes, submit]);
 
   const goBackToApplication = () => {
     if (examActive) {
@@ -344,7 +390,7 @@ export default function McqPage() {
           ) : questions.length === 0 ? (
             <EmptyState
               title="No MCQ questions available yet"
-              description="This assessment has not been generated for the selected job."
+              description={message || "This assessment has not been generated for the selected job."}
             />
           ) : (
             <>
@@ -361,37 +407,56 @@ export default function McqPage() {
                   {directives ? <p className="mt-1 text-xs text-amber-700">{directives}</p> : null}
                 </div>
               ) : null}
-              <div className="space-y-4">
-                {questions.map((q, i) => (
-                  <div key={q.id} className="rounded-xl border border-slate-200 p-4 shadow-sm space-y-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="font-medium">
-                        Q{i + 1}. {q.question_text}
-                      </p>
-                      {q.skill_tag ? <Badge variant="outline">{q.skill_tag}</Badge> : null}
-                    </div>
-                    <div className="space-y-2">
-                      {q.options.map((option, idx) => (
-                        <label key={idx} className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm transition hover:bg-slate-50">
-                          <input
-                            type="radio"
-                            name={`q-${q.id}`}
-                            checked={answers[q.id] === idx}
-                            onChange={() => setAnswers((prev) => ({ ...prev, [q.id]: idx }))}
-                          />
-                          <span>{option}</span>
-                        </label>
-                      ))}
-                    </div>
+              {currentQuestion ? (
+                <div className="rounded-xl border border-slate-200 p-4 shadow-sm space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-medium">
+                      Q{currentQuestionIndex + 1} / {questions.length}. {currentQuestion.question_text}
+                    </p>
+                    {currentQuestion.skill_tag ? <Badge variant="outline">{currentQuestion.skill_tag}</Badge> : null}
                   </div>
-                ))}
-              </div>
+                  <div className="space-y-2">
+                    {currentQuestion.options.map((option, idx) => (
+                      <label key={idx} className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm transition hover:bg-slate-50">
+                        <input
+                          type="radio"
+                          name={`q-${currentQuestion.id}`}
+                          checked={answers[currentQuestion.id] === idx}
+                          onChange={() => setAnswers((prev) => ({ ...prev, [currentQuestion.id]: idx }))}
+                        />
+                        <span>{option}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                    <Button
+                      variant="outline"
+                      onClick={() => setCurrentQuestionIndex((prev) => Math.max(0, prev - 1))}
+                      disabled={currentQuestionIndex === 0}
+                    >
+                      Previous
+                    </Button>
+                    {currentQuestionIndex < questions.length - 1 ? (
+                      <Button
+                        onClick={() => setCurrentQuestionIndex((prev) => Math.min(questions.length - 1, prev + 1))}
+                      >
+                        Next
+                      </Button>
+                    ) : (
+                      <Button onClick={() => submit(false)} disabled={submitting}>
+                        {submitting ? "Submitting..." : "Submit MCQ"}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ) : null}
               {message ? <p className="text-sm text-red-600">{message}</p> : null}
-              <div className="flex justify-end">
-                <Button onClick={() => submit(false)} disabled={submitting}>
-                  {submitting ? "Submitting..." : "Submit MCQ"}
-                </Button>
-              </div>
+              {securityMessage ? <p className="text-sm text-amber-700">{securityMessage}</p> : null}
+              {!hasSubmitted ? (
+                <p className="text-xs text-slate-500">
+                  Security checks active. Tab switches recorded: {securityStrikes}/3.
+                </p>
+              ) : null}
             </>
           )}
         </CardContent>

@@ -24,19 +24,19 @@ export const LandingPage = () => {
             transition={{ duration: 0.5 }}
           >
             <span className="inline-block px-4 py-1.5 mb-6 text-sm font-semibold tracking-wider text-indigo-600 uppercase bg-indigo-50 rounded-full">
-              The Future of Hiring
+              The Future of Hiring and Careers
             </span>
             <h1 className="text-4xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100 sm:text-6xl mb-6">
               The Intelligent <br />
-              <span className="text-indigo-600">Hiring Operating System</span>
+              <span className="text-indigo-600">Talent Marketplace Operating System</span>
             </h1>
             <p className="max-w-2xl mx-auto text-xl text-slate-500 dark:text-slate-300 mb-10">
-              Automate screening, coding tests, and interviews with AI. 
-              Rank candidates by skill, not keywords.
+              A single platform for employers to hire smarter and for candidates to get hired faster.
+              Automate assessments, surface real skills, and match the right talent to the right roles.
             </p>
             <div className="flex justify-center gap-4">
               <Link href={getStartedHref}>
-                <Button size="lg" className="px-8 text-lg h-14">Get Started Free</Button>
+                <Button size="lg" className="px-8 text-lg h-14">Get Started</Button>
               </Link>
               <Link href="/jobs">
                 <Button variant="outline" size="lg" className="px-8 text-lg h-14">Browse Jobs</Button>
@@ -51,10 +51,10 @@ export const LandingPage = () => {
         <div className="container mx-auto px-4">
           <div className="text-center mb-16">
             <h2 className="text-3xl font-bold text-slate-900 dark:text-slate-100 sm:text-4xl">
-              Everything you need to hire the best
+              Everything you need to hire and get hired
             </h2>
             <p className="mt-4 text-lg text-slate-600 dark:text-slate-300">
-              From application to offer letter, we&apos;ve got you covered.
+              From job discovery to offer decisions, we&apos;ve got both sides covered.
             </p>
           </div>
 
@@ -108,14 +108,14 @@ export const LandingPage = () => {
           <div className="flex flex-col lg:flex-row items-center gap-16">
             <div className="lg:w-1/2">
               <h2 className="text-3xl font-bold text-slate-900 dark:text-slate-100 sm:text-4xl mb-6">
-                Streamline your hiring pipeline
+                Streamline your talent journey
               </h2>
               <div className="space-y-8">
                 {[
-                  "Create a job post with custom stages",
-                  "Candidates apply and take automated tests",
-                  "AI interviews screen for culture fit",
-                  "Review the top 10% of ranked candidates"
+                  "Post jobs or discover relevant opportunities",
+                  "Run and take skill-based assessments",
+                  "Use AI interviews and insights to evaluate fit",
+                  "Move faster from shortlist to offer and acceptance"
                 ].map((step, i) => (
                   <div key={i} className="flex gap-4">
                     <div className="flex-shrink-0 w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold">
@@ -167,13 +167,13 @@ export const LandingPage = () => {
       {/* CTA */}
       <section className="bg-indigo-600 py-20">
         <div className="container mx-auto px-4 text-center">
-          <h2 className="text-3xl font-bold text-white mb-6">Ready to transform your hiring?</h2>
+          <h2 className="text-3xl font-bold text-white mb-6">Ready to transform hiring and job search?</h2>
           <p className="text-indigo-100 mb-10 max-w-2xl mx-auto text-lg">
-            Join 10,000+ companies using Smart Hire to find the best talent faster.
+            Join companies and candidates using Smart Hire to connect through skill-first matching.
           </p>
           <Link href={getStartedHref}>
             <Button size="lg" className="bg-white text-indigo-600 hover:bg-indigo-50 border-transparent text-lg px-8 h-14">
-              Start Free Trial
+              Get Started
             </Button>
           </Link>
         </div>

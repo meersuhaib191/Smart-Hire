@@ -9,6 +9,9 @@ export async function POST(request: Request) {
       candidateId?: string;
       companyTier?: "faang" | "startup" | "enterprise" | "general";
       candidatePerformanceScore?: number;
+      jobRole?: string;
+      experienceLevel?: "fresher" | "junior" | "mid" | "senior";
+      seed?: string;
       count?: number;
     };
     const jobId = body.jobId || "";
@@ -21,7 +24,7 @@ export async function POST(request: Request) {
     const supabase = createSupabaseAdmin();
     const { data: job, error: jobError } = await supabase
       .from("jobs")
-      .select("id, title, description, job_skills(skill_name)")
+      .select("id, title, description, experience_required, job_skills(skill_name)")
       .eq("id", jobId)
       .single();
 
@@ -35,9 +38,21 @@ export async function POST(request: Request) {
       skills,
       count,
       jobId: job.id,
+      jobRole: body.jobRole || String(job.title || ""),
       candidateId: body.candidateId,
       companyTier: body.companyTier || "general",
       candidatePerformanceScore: body.candidatePerformanceScore,
+      experienceLevel:
+        body.experienceLevel ||
+        (Number(job.experience_required || 0) <= 1
+          ? "fresher"
+          : Number(job.experience_required || 0) <= 3
+            ? "junior"
+            : Number(job.experience_required || 0) <= 6
+              ? "mid"
+              : "senior"),
+      seed: body.seed || body.candidateId || `${job.id}:${Date.now()}`,
+      requireEngine: true,
       jobTitle: String(job.title || ""),
       jobDescription: String(job.description || ""),
       difficultyHint: "challenging",

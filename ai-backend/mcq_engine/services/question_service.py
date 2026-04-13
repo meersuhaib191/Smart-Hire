@@ -9,7 +9,14 @@ from pymongo.errors import DuplicateKeyError
 from ..config import settings
 from ..db.mongo import question_sets_collection, questions_collection
 from ..db.redis_client import get_redis
-from ..models.schemas import GenerateBatchMCQRequest, GenerateBatchMCQResponse, GenerateMCQRequest, GenerateMCQResponse, MCQQuestion
+from ..models.schemas import (
+    ExperienceLevel,
+    GenerateBatchMCQRequest,
+    GenerateBatchMCQResponse,
+    GenerateMCQRequest,
+    GenerateMCQResponse,
+    MCQQuestion,
+)
 from .jd_parser_service import JDParserService
 from .llm_service import LLMService
 from .randomization_service import RandomizationService
@@ -26,8 +33,17 @@ class QuestionService:
 
     def generate_candidate_test(self, payload: GenerateMCQRequest) -> GenerateMCQResponse:
         parsed_jd = self._jd_parser.parse(payload.job_description)
-        medium_count, hard_count = self._resolve_difficulty_mix(payload.candidate_performance_score)
-        self._ensure_pool(payload.job_id, payload.job_description, parsed_jd.topics, payload.company_tier)
+        experience_level = self._resolve_experience_level(payload.experience_level, payload.candidate_performance_score)
+        medium_count, hard_count = self._resolve_difficulty_mix(payload.candidate_performance_score, experience_level)
+        self._ensure_pool(
+            payload.job_id,
+            payload.job_description,
+            parsed_jd.topics,
+            payload.company_tier,
+            job_role=payload.job_role,
+            experience_level=experience_level,
+            seed=payload.seed or payload.candidate_id,
+        )
         pool = self._fetch_candidate_pool(payload.job_id, parsed_jd.topics, payload.company_tier)
 
         for _ in range(3):
@@ -49,6 +65,9 @@ class QuestionService:
                 parsed_jd.topics,
                 batch_size=20,
                 company_tier=payload.company_tier,
+                job_role=payload.job_role,
+                experience_level=experience_level,
+                seed=payload.seed or f"{payload.candidate_id}:{uuid4()}",
             )
             pool = self._fetch_candidate_pool(payload.job_id, parsed_jd.topics, payload.company_tier)
 
@@ -63,6 +82,9 @@ class QuestionService:
                 candidate_id=candidate_id,
                 candidate_performance_score=payload.candidate_performance_score,
                 company_tier=payload.company_tier,
+                job_role=payload.job_role,
+                experience_level=payload.experience_level,
+                seed=f"{payload.seed or payload.job_id}:{candidate_id}",
             )
             tests.append(self.generate_candidate_test(single_payload))
 
@@ -72,7 +94,16 @@ class QuestionService:
             tests=tests,
         )
 
-    def _ensure_pool(self, job_id: str, job_description: str, topics: list[str], company_tier: str) -> None:
+    def _ensure_pool(
+        self,
+        job_id: str,
+        job_description: str,
+        topics: list[str],
+        company_tier: str,
+        job_role: str | None = None,
+        experience_level: ExperienceLevel | None = None,
+        seed: str | None = None,
+    ) -> None:
         count = self._question_collection.count_documents({"job_id": job_id, "company_tier": company_tier})
         if count >= settings.question_pool_threshold:
             return
@@ -85,6 +116,9 @@ class QuestionService:
                 topics,
                 batch_size=settings.llm_generation_batch_size,
                 company_tier=company_tier,
+                job_role=job_role,
+                experience_level=experience_level,
+                seed=seed,
             )
             if generated == 0:
                 zero_insert_rounds += 1
@@ -101,6 +135,9 @@ class QuestionService:
         topics: list[str],
         batch_size: int,
         company_tier: str,
+        job_role: str | None = None,
+        experience_level: ExperienceLevel | None = None,
+        seed: str | None = None,
     ) -> int:
         medium_target = max(batch_size // 2, 1)
         hard_target = max(batch_size - medium_target, 1)
@@ -115,6 +152,9 @@ class QuestionService:
             medium_count=medium_target,
             hard_count=hard_target,
             excluded_hashes=excluded,
+            job_role=job_role,
+            experience_level=experience_level,
+            seed=seed,
         )
 
         inserted = 0
@@ -192,12 +232,38 @@ class QuestionService:
         return GenerateMCQResponse(candidate_id=candidate_id, test_id=test_id, questions=questions)
 
     @staticmethod
-    def _resolve_difficulty_mix(score: float | None) -> tuple[int, int]:
+    def _resolve_difficulty_mix(score: float | None, experience_level: ExperienceLevel | None = None) -> tuple[int, int]:
+        if experience_level == "fresher":
+            return 8, 2
+        if experience_level == "junior":
+            return 7, 3
+        if experience_level == "mid":
+            return 4, 6
+        if experience_level == "senior":
+            return 3, 7
         if score is None:
             return settings.medium_questions_per_test, settings.hard_questions_per_test
+        if score <= 0.25:
+            return 8, 2
+        if score <= 0.45:
+            return 7, 3
         if score >= 0.75:
             return 4, 6
-        if score <= 0.35:
+        if score <= 0.6:
             return 6, 4
         return settings.medium_questions_per_test, settings.hard_questions_per_test
+
+    @staticmethod
+    def _resolve_experience_level(explicit_level: ExperienceLevel | None, score: float | None) -> ExperienceLevel | None:
+        if explicit_level:
+            return explicit_level
+        if score is None:
+            return None
+        if score <= 0.3:
+            return "fresher"
+        if score <= 0.5:
+            return "junior"
+        if score <= 0.75:
+            return "mid"
+        return "senior"
 

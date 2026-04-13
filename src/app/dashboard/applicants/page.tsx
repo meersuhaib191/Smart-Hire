@@ -40,6 +40,14 @@ type ShortlistMeta = {
   shortlistTotalSubmissions: number;
 };
 
+const resolveRoundStatus = (stageBuckets: Record<PipelineStageId, CandidateRow[]>) => {
+  if (stageBuckets.INTERVIEW.length > 0) return "AI Interview Round Ongoing";
+  if (stageBuckets.CODING.length > 0) return "Coding Round Ongoing";
+  if (stageBuckets.MCQ.length > 0) return "MCQ Round Ongoing";
+  if (stageBuckets.ATS.length > 0) return "Awaiting Deadline Shortlist";
+  return "Round Not Started";
+};
+
 export default function ApplicantsDashboard() {
   const [jobs, setJobs] = useState<JobRow[]>([]);
   const [jobId, setJobId] = useState<string>("");
@@ -143,6 +151,7 @@ export default function ApplicantsDashboard() {
     }
     return bucket;
   }, [candidates]);
+  const roundStatus = useMemo(() => resolveRoundStatus(stageBuckets), [stageBuckets]);
 
   const conversion = (stage: PipelineStageId) => {
     const idx = stageOrder.indexOf(stage);
@@ -207,7 +216,7 @@ export default function ApplicantsDashboard() {
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <Badge variant="secondary" className="rounded-lg">
                 <Briefcase size={12} className="mr-1" />
-                {selectedJob.status || "PUBLISHED"}
+                {roundStatus}
               </Badge>
               <Badge variant="outline" className="rounded-lg">
                 {selectedJob.applicantCount} applicants
@@ -271,8 +280,8 @@ export default function ApplicantsDashboard() {
       {shortlistMeta ? (
         <Card className="rounded-2xl border-slate-200/80 bg-white/95 shadow-sm">
           <CardHeader>
-            <CardTitle>Deadline Shortlist Status</CardTitle>
-            <CardDescription>Automatic ATS-based top 20% selection after submission deadline.</CardDescription>
+            <CardTitle>Current Round Status</CardTitle>
+            <CardDescription>Live pipeline round tracking after ATS shortlist completion.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <div>
@@ -284,8 +293,8 @@ export default function ApplicantsDashboard() {
               </p>
             </div>
             <div>
-              <p className="text-xs uppercase tracking-wide text-slate-500">Shortlist Status</p>
-              <p className="text-sm font-medium text-slate-900">{shortlistMeta.shortlistStatus || "pending"}</p>
+              <p className="text-xs uppercase tracking-wide text-slate-500">Current Round</p>
+              <p className="text-sm font-medium text-slate-900">{roundStatus}</p>
             </div>
             <div>
               <p className="text-xs uppercase tracking-wide text-slate-500">Selected</p>

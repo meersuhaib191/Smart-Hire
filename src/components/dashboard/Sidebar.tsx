@@ -41,6 +41,7 @@ const roleMenus: Record<UserRole, SidebarItem[]> = {
     { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard/hr' },
     { id: 'jobs', icon: Briefcase, label: 'Jobs', href: '/dashboard/hr/jobs' },
     { id: 'candidates', icon: Users, label: 'Candidates', href: '/dashboard/hr/candidates' },
+    { id: 'notifications', icon: Bell, label: 'Notifications', href: '/dashboard/hr/notifications' },
     { id: 'analytics', icon: BarChart, label: 'Analytics', href: '/dashboard/hr/analytics' },
     { id: 'settings', icon: Settings, label: 'Settings', href: '/dashboard/hr/settings' },
   ],
@@ -142,7 +143,10 @@ export const Sidebar = ({ role, desktopCollapsed, mobileOpen, setMobileOpen }: S
             Navigation
           </div>
           {menu.map((item) => {
-            const isActive = pathname === item.href || pathname?.startsWith(`${item.href}/`);
+            const isRootDashboardItem = item.id === 'dashboard';
+            const isActive = isRootDashboardItem
+              ? pathname === item.href
+              : pathname === item.href || pathname?.startsWith(`${item.href}/`);
             return (
               <motion.div key={`${role}-${item.id}`} whileHover={{ x: 2 }} whileTap={{ scale: 0.98 }}>
                 <Link

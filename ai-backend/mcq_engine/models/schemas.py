@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, field_validator
 
 
 Difficulty = Literal["medium", "hard"]
+ExperienceLevel = Literal["fresher", "junior", "mid", "senior"]
 
 
 class ParsedJobDescription(BaseModel):
@@ -22,6 +23,9 @@ class GenerateMCQRequest(BaseModel):
     candidate_id: str = Field(min_length=1)
     candidate_performance_score: float | None = Field(default=None, ge=0.0, le=1.0)
     company_tier: Literal["faang", "startup", "enterprise", "general"] = "general"
+    job_role: str | None = None
+    experience_level: ExperienceLevel | None = None
+    seed: str | None = None
 
 
 class ParseJobDescriptionRequest(BaseModel):
@@ -58,6 +62,9 @@ class GenerateBatchMCQRequest(BaseModel):
     candidate_ids: list[str] = Field(min_length=1)
     candidate_performance_score: float | None = Field(default=None, ge=0.0, le=1.0)
     company_tier: Literal["faang", "startup", "enterprise", "general"] = "general"
+    job_role: str | None = None
+    experience_level: ExperienceLevel | None = None
+    seed: str | None = None
 
     @field_validator("candidate_ids")
     @classmethod

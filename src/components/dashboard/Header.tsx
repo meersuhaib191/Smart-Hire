@@ -1,20 +1,11 @@
 "use client";
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useStore } from '@/store/useStore';
 import { Bell, LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, Search, Sun } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { useRouter } from 'next/navigation';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Badge } from '@/components/ui/Badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { motion } from 'motion/react';
 import { useTheme } from '@/hooks/useTheme';
 
 type HeaderProps = {
@@ -32,55 +23,34 @@ export const Header = ({ desktopCollapsed, onToggleDesktop, onToggleMobile }: He
   const [jobs, setJobs] = useState<Array<{ id: string; title: string }>>([]);
   const [selectedJobId, setSelectedJobId] = useState('');
   const [unreadCount, setUnreadCount] = useState(0);
-  const [notificationsLoading, setNotificationsLoading] = useState(false);
-  const [notifications, setNotifications] = useState<
-    Array<{
-    id: string;
-    title: string;
-    message: string;
-    is_read: boolean;
-    created_at: string;
-    }>
-  >([]);
   const { resolvedTheme, toggleTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
 
-  const formatWhen = (iso: string) => {
-    const then = new Date(iso).getTime();
-    const diff = Math.max(0, Date.now() - then);
-    const mins = Math.floor(diff / 60000);
-    if (mins < 1) return "just now";
-    if (mins < 60) return `${mins}m ago`;
-    const hours = Math.floor(mins / 60);
-    if (hours < 24) return `${hours}h ago`;
-    const days = Math.floor(hours / 24);
-    return `${days}d ago`;
-  };
-
-  const loadNotifications = async () => {
+  const loadNotifications = useCallback(async () => {
     if (!isApplicant && !isHr) return;
     try {
-      setNotificationsLoading(true);
-      const res = await fetch("/api/notifications?limit=6", { cache: "no-store" });
+      const res = await fetch("/api/notifications?limit=1", { cache: "no-store" });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) return;
       setUnreadCount(Number(json.unread || 0));
-      setNotifications(Array.isArray(json.items) ? json.items : []);
     } catch {
       // Non-blocking
-    } finally {
-      setNotificationsLoading(false);
     }
-  };
+  }, [isApplicant, isHr]);
 
   useEffect(() => {
-    void loadNotifications();
-    if (!isApplicant && !isHr) return;
+    const timeout = window.setTimeout(() => {
+      void loadNotifications();
+    }, 0);
+    if (!isApplicant && !isHr) return () => window.clearTimeout(timeout);
     const interval = window.setInterval(() => {
       void loadNotifications();
     }, 15000);
-    return () => window.clearInterval(interval);
-  }, [isApplicant, isHr]);
+    return () => {
+      window.clearTimeout(timeout);
+      window.clearInterval(interval);
+    };
+  }, [isApplicant, isHr, loadNotifications]);
 
   useEffect(() => {
     if (!isHr) return;
@@ -99,11 +69,11 @@ export const Header = ({ desktopCollapsed, onToggleDesktop, onToggleMobile }: He
     router.push('/login');
   };
 
-  const notificationLabel = useMemo(() => {
-    if (notificationsLoading) return 'Loading...';
-    if (!notifications.length) return 'No updates yet.';
-    return `${notifications.length} recent event${notifications.length > 1 ? 's' : ''}`;
-  }, [notifications.length, notificationsLoading]);
+  const notificationRoute = useMemo(() => {
+    if (isApplicant) return "/dashboard/applicant/notifications";
+    if (isHr) return "/dashboard/hr/notifications";
+    return "/dashboard";
+  }, [isApplicant, isHr]);
 
   return (
     <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur-sm dark:border-white/15 dark:bg-slate-950/65 dark:backdrop-blur-xl">
@@ -154,45 +124,18 @@ export const Header = ({ desktopCollapsed, onToggleDesktop, onToggleMobile }: He
             {isDark ? <Sun size={18} /> : <Moon size={18} />}
           </Button>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="relative rounded-xl text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-white/10 dark:hover:text-white">
-                <Bell size={18} />
-                {unreadCount > 0 ? (
-                  <span className="absolute right-2 top-2 inline-flex h-2 w-2 rounded-full bg-violet-400 ring-2 ring-white dark:ring-slate-900" />
-                ) : null}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-[360px] rounded-2xl border border-slate-200/70 p-0">
-              <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-                <DropdownMenuLabel className="p-0 text-sm font-semibold text-slate-900">Activity Alerts</DropdownMenuLabel>
-                <Badge variant="secondary" className="rounded-full">
-                  {unreadCount} unread
-                </Badge>
-              </div>
-              <div className="px-4 py-3 text-xs text-slate-500">{notificationLabel}</div>
-              <DropdownMenuSeparator />
-              <div className="max-h-80 overflow-y-auto p-2">
-                {notifications.slice(0, 6).map((item) => (
-                  <motion.div
-                    key={item.id}
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className={`mb-2 rounded-xl border p-3 ${item.is_read ? 'border-slate-100 bg-white' : 'border-violet-100 bg-violet-50'}`}
-                  >
-                    <p className="text-sm font-semibold text-slate-900">{item.title}</p>
-                    <p className="mt-1 text-xs text-slate-600">{item.message}</p>
-                    <p className="mt-1 text-[11px] text-slate-400">{formatWhen(item.created_at)}</p>
-                  </motion.div>
-                ))}
-                {!notifications.length && !notificationsLoading ? (
-                  <div className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs text-slate-500">
-                    No events to show.
-                  </div>
-                ) : null}
-              </div>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="relative rounded-xl text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-white/10 dark:hover:text-white"
+            onClick={() => router.push(notificationRoute)}
+            title="Open notifications"
+          >
+            <Bell size={18} />
+            {unreadCount > 0 ? (
+              <span className="absolute right-2 top-2 inline-flex h-2 w-2 rounded-full bg-violet-400 ring-2 ring-white dark:ring-slate-900" />
+            ) : null}
+          </Button>
 
           <div className="h-8 w-px bg-slate-200 dark:bg-white/15" />
 

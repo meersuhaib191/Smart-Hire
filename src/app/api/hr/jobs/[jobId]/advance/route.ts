@@ -33,6 +33,57 @@ const isMissingRoundControlsTable = (message?: string) =>
   (message || "").includes("relation \"public.application_round_controls\" does not exist") ||
   (message || "").includes("Could not find the table 'application_round_controls'") ||
   (message || "").includes("Could not find the table 'public.application_round_controls'");
+const isMissingQuestionSetsTable = (message?: string) =>
+  (message || "").includes("relation \"mcq_question_sets\" does not exist") ||
+  (message || "").includes("relation \"public.mcq_question_sets\" does not exist") ||
+  (message || "").includes("Could not find the table 'mcq_question_sets'") ||
+  (message || "").includes("Could not find the table 'public.mcq_question_sets'");
+const isMissingAttemptAnswersTable = (message?: string) =>
+  (message || "").includes("relation \"mcq_attempt_answers\" does not exist") ||
+  (message || "").includes("relation \"public.mcq_attempt_answers\" does not exist") ||
+  (message || "").includes("Could not find the table 'mcq_attempt_answers'") ||
+  (message || "").includes("Could not find the table 'public.mcq_attempt_answers'");
+
+async function resetMcqProgressForApplications(
+  admin: ReturnType<typeof createSupabaseAdmin>,
+  applicationIds: string[]
+) {
+  if (!applicationIds.length) return;
+  const { data: attempts, error: attemptsError } = await admin
+    .from("mcq_attempts")
+    .select("id")
+    .in("application_id", applicationIds);
+  if (attemptsError) {
+    throw new Error(`Failed to load prior MCQ attempts: ${attemptsError.message}`);
+  }
+
+  const attemptIds = (attempts || []).map((row) => String(row.id));
+  if (attemptIds.length) {
+    const { error: deleteAnswersError } = await admin
+      .from("mcq_attempt_answers")
+      .delete()
+      .in("attempt_id", attemptIds);
+    if (deleteAnswersError && !isMissingAttemptAnswersTable(deleteAnswersError.message)) {
+      throw new Error(`Failed to reset MCQ attempt answers: ${deleteAnswersError.message}`);
+    }
+  }
+
+  const { error: deleteAttemptsError } = await admin
+    .from("mcq_attempts")
+    .delete()
+    .in("application_id", applicationIds);
+  if (deleteAttemptsError) {
+    throw new Error(`Failed to reset MCQ attempts: ${deleteAttemptsError.message}`);
+  }
+
+  const { error: deleteSetError } = await admin
+    .from("mcq_question_sets")
+    .delete()
+    .in("application_id", applicationIds);
+  if (deleteSetError && !isMissingQuestionSetsTable(deleteSetError.message)) {
+    throw new Error(`Failed to reset MCQ question set: ${deleteSetError.message}`);
+  }
+}
 
 async function ensureMcqsForJob(
   admin: ReturnType<typeof createSupabaseAdmin>,
@@ -61,6 +112,7 @@ async function ensureMcqsForJob(
     skills,
     jobId,
     count: toGenerate,
+    requireEngine: true,
     jobTitle: String(job.title || ""),
     jobDescription: String(job.description || ""),
     difficultyHint: "challenging",
@@ -204,6 +256,7 @@ export async function POST(request: Request, context: { params: Promise<{ jobId:
       }
 
       if (nextStage === "MCQ") {
+        await resetMcqProgressForApplications(admin, selectedIds);
         await ensureMcqsForJob(admin, jobId);
       }
 

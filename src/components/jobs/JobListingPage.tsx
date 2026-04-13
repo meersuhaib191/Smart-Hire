@@ -83,11 +83,11 @@ export function JobListingPage() {
           onToggleMobile={() => setMobileOpen((prev) => !prev)}
         />
         <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="rounded-3xl border border-indigo-100 bg-white p-6 shadow-lg shadow-indigo-100 dark:border-slate-700 dark:bg-slate-900/70 dark:shadow-slate-950/30">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-600">SmartHire Talent Marketplace</p>
-            <h1 className="mt-2 text-3xl font-semibold text-slate-900 dark:text-white">Find your next role in a premium hiring experience</h1>
+          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="app-card p-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-500">SmartHire Jobs</p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 dark:text-white">Jobs</h1>
             <p className="mt-2 max-w-3xl text-sm text-slate-500 dark:text-slate-300">
-              Browse curated roles from credible teams, compare opportunities quickly, and apply through a guided multi-step flow.
+              Explore open roles, compare opportunities quickly, and apply through a guided hiring flow.
             </p>
           </motion.div>
 
@@ -114,7 +114,7 @@ export function JobListingPage() {
             </div>
 
             <div className="space-y-4">
-              <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/70">
+              <div className="app-card p-4">
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
@@ -140,7 +140,7 @@ export function JobListingPage() {
               {loading ? (
                 <ListingSkeleton />
               ) : filteredJobs.length === 0 ? (
-                <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm dark:border-slate-700 dark:bg-slate-900/70">
+                <div className="app-card p-10 text-center">
                   <p className="text-lg font-semibold text-slate-900 dark:text-slate-100">No roles match your filters</p>
                   <p className="mt-2 text-sm text-slate-500 dark:text-slate-300">Adjust filters or broaden your search to discover more openings.</p>
                 </div>

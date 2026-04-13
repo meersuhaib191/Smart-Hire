@@ -19,6 +19,14 @@ type JobRow = {
   applications?: Array<{ id: string }>;
 };
 
+const currentRoundLabel = (shortlistStatus?: string | null) => {
+  const status = String(shortlistStatus || "").toLowerCase();
+  if (status === "completed") return "MCQ Round Ongoing";
+  if (status === "running" || status === "pending" || status === "") return "Awaiting Deadline Shortlist";
+  if (status === "failed") return "ATS Screening Needs Attention";
+  return "Awaiting Deadline Shortlist";
+};
+
 export default function HrAnalyticsPage() {
   const [jobs, setJobs] = useState<JobRow[]>([]);
 
@@ -37,13 +45,13 @@ export default function HrAnalyticsPage() {
       (sum, job) => sum + (Array.isArray(job.applications) ? job.applications.length : 0),
       0
     );
-    const completedShortlists = jobs.filter(
+    const mcqRoundJobs = jobs.filter(
       (job) => String(job.shortlist_status || "").toLowerCase() === "completed"
     ).length;
-    const pendingShortlists = jobs.filter((job) =>
+    const awaitingDeadlineJobs = jobs.filter((job) =>
       ["pending", "running", "failed", ""].includes(String(job.shortlist_status || "").toLowerCase())
     ).length;
-    return { totalJobs, totalApplicants, completedShortlists, pendingShortlists };
+    return { totalJobs, totalApplicants, mcqRoundJobs, awaitingDeadlineJobs };
   }, [jobs]);
 
   return (
@@ -52,7 +60,7 @@ export default function HrAnalyticsPage() {
         <div>
           <h1 className="text-3xl font-semibold tracking-tight text-slate-900 dark:text-white">Analytics</h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-300">
-            End-to-end hiring metrics from job posting to automatic shortlist completion.
+            End-to-end hiring metrics from ATS screening to current active round progress.
           </p>
         </div>
         <div className="flex gap-2">
@@ -80,14 +88,14 @@ export default function HrAnalyticsPage() {
         </Card>
         <Card className="rounded-2xl">
           <CardContent className="pt-6">
-            <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-300">Shortlists Completed</p>
-            <p className="text-2xl font-semibold text-slate-900 dark:text-white">{totals.completedShortlists}</p>
+            <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-300">MCQ Round Ongoing</p>
+            <p className="text-2xl font-semibold text-slate-900 dark:text-white">{totals.mcqRoundJobs}</p>
           </CardContent>
         </Card>
         <Card className="rounded-2xl">
           <CardContent className="pt-6">
-            <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-300">Shortlists Pending</p>
-            <p className="text-2xl font-semibold text-slate-900 dark:text-white">{totals.pendingShortlists}</p>
+            <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-300">Awaiting Deadline Shortlist</p>
+            <p className="text-2xl font-semibold text-slate-900 dark:text-white">{totals.awaitingDeadlineJobs}</p>
           </CardContent>
         </Card>
       </div>
@@ -95,7 +103,7 @@ export default function HrAnalyticsPage() {
       <Card className="rounded-2xl">
         <CardHeader>
           <CardTitle className="dark:text-white">Automation Trend</CardTitle>
-          <CardDescription className="dark:text-slate-300">Completed vs pending shortlists per role.</CardDescription>
+          <CardDescription className="dark:text-slate-300">Applicants vs shortlisted candidates per role.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="h-[260px]">
@@ -123,8 +131,8 @@ export default function HrAnalyticsPage() {
 
       <Card className="rounded-2xl">
         <CardHeader>
-          <CardTitle className="dark:text-white">Job Automation Status</CardTitle>
-          <CardDescription className="dark:text-slate-300">Track ATS and shortlist execution status per job.</CardDescription>
+          <CardTitle className="dark:text-white">Job Round Status</CardTitle>
+          <CardDescription className="dark:text-slate-300">Track current active round per job.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {jobs.map((job) => (
@@ -137,7 +145,7 @@ export default function HrAnalyticsPage() {
                 <p className="font-medium text-slate-900 dark:text-white">{job.title}</p>
                 <div className="flex gap-2">
                   <Badge variant="secondary">{job.status || "draft"}</Badge>
-                  <Badge variant="outline">shortlist: {job.shortlist_status || "pending"}</Badge>
+                  <Badge variant="outline">{currentRoundLabel(job.shortlist_status)}</Badge>
                 </div>
               </div>
             </motion.div>

@@ -19,6 +19,12 @@ const isMissingRoundControlsTable = (message?: string) =>
   (message || "").includes("Could not find the table 'application_round_controls'") ||
   (message || "").includes("Could not find the table 'public.application_round_controls'");
 
+const isMissingQuestionSetsTable = (message?: string) =>
+  (message || "").includes("relation \"mcq_question_sets\" does not exist") ||
+  (message || "").includes("relation \"public.mcq_question_sets\" does not exist") ||
+  (message || "").includes("Could not find the table 'mcq_question_sets'") ||
+  (message || "").includes("Could not find the table 'public.mcq_question_sets'");
+
 const loadReviewAnswers = async (supabase: ReturnType<typeof createSupabaseAdmin>, attemptId: string) => {
   const { data } = await supabase
     .from("mcq_attempt_answers")
@@ -82,8 +88,8 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!applicationId || !answers.length || !sessionToken) {
-      return NextResponse.json({ error: "applicationId, answers and sessionToken are required." }, { status: 400 });
+    if (!applicationId || !sessionToken) {
+      return NextResponse.json({ error: "applicationId and sessionToken are required." }, { status: 400 });
     }
 
     const tokenCheck = verifyMcqSessionToken(sessionToken, applicationId);
@@ -141,11 +147,40 @@ export async function POST(request: Request) {
       }
     }
 
-    const questionIds = answers.map((a) => a.questionId);
+    const { data: questionSet, error: questionSetError } = await supabase
+      .from("mcq_question_sets")
+      .select("question_ids")
+      .eq("application_id", applicationId)
+      .maybeSingle();
+    const missingQuestionSetsTable = isMissingQuestionSetsTable(questionSetError?.message);
+    if (questionSetError && !missingQuestionSetsTable) {
+      return NextResponse.json({ error: "Failed to load applicant MCQ set.", detail: questionSetError.message }, { status: 500 });
+    }
+    const assignedQuestionIds = missingQuestionSetsTable
+      ? answers.map((a) => String(a.questionId))
+      : ((questionSet?.question_ids || []) as string[]).map((id) => String(id));
+    if (!assignedQuestionIds.length) {
+      return NextResponse.json({ error: "No assigned MCQ set found for this application." }, { status: 400 });
+    }
+
+    const submittedQuestionIds = answers.map((a) => String(a.questionId));
+    if (!missingQuestionSetsTable && submittedQuestionIds.some((id) => !assignedQuestionIds.includes(id))) {
+      await logStageSubmission({
+        applicationId,
+        stageType: "MCQ",
+        status: "BLOCKED",
+        actorUserId: user.id,
+        ipAddress,
+        userAgent,
+        detail: { reason: "question_set_mismatch" },
+      });
+      return NextResponse.json({ error: "Submitted answers include unassigned questions." }, { status: 400 });
+    }
+
     const { data: questions, error: questionsError } = await supabase
       .from("mcq_questions")
       .select("id, job_id, correct_option")
-      .in("id", questionIds);
+      .in("id", assignedQuestionIds);
 
     if (questionsError || !questions?.length) {
       await logStageSubmission({
@@ -173,13 +208,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Some questions do not belong to this application job." }, { status: 400 });
     }
 
-    const answerMap = new Map(answers.map((a) => [a.questionId, a.selectedOption]));
+    const answerMap = new Map(answers.map((a) => [String(a.questionId), a.selectedOption]));
     const evaluated = questions.map((q) => {
-      const selected = Number(answerMap.get(q.id));
+      const selectedRaw = answerMap.get(String(q.id));
+      const selected = Number.isInteger(selectedRaw) ? Number(selectedRaw) : -1;
       const isCorrect = selected === q.correct_option;
       return {
         question_id: q.id,
-        selected_option: selected,
+        selected_option: selected >= 0 ? selected : 0,
         is_correct: isCorrect,
       };
     });

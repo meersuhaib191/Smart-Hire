@@ -78,10 +78,12 @@ const getEngineBaseUrl = (): string => {
 
 const buildEngineJobDescription = (input: {
   skills: string[];
+  jobRole?: string;
   jobTitle?: string;
   jobDescription?: string;
 }): string => {
   const parts: string[] = [];
+  if (input.jobRole?.trim()) parts.push(`Job Role: ${input.jobRole.trim()}`);
   if (input.jobTitle?.trim()) parts.push(`Job Title: ${input.jobTitle.trim()}`);
   if (input.jobDescription?.trim()) parts.push(`Job Description: ${input.jobDescription.trim()}`);
   if (input.skills.length) parts.push(`Core Skills: ${input.skills.join(", ")}`);
@@ -105,11 +107,14 @@ const generateViaMcqEngine = async (input: {
   skills: string[];
   count: number;
   jobId?: string;
+  jobRole?: string;
   jobTitle?: string;
   jobDescription?: string;
   candidateId?: string;
   companyTier?: "faang" | "startup" | "enterprise" | "general";
   candidatePerformanceScore?: number;
+  experienceLevel?: "fresher" | "junior" | "mid" | "senior";
+  seed?: string;
 }): Promise<McqQuestionInput[] | null> => {
   const baseUrl = getEngineBaseUrl();
   if (!baseUrl) return null;
@@ -127,26 +132,32 @@ const generateViaMcqEngine = async (input: {
         ? input.candidateId
         : `${input.candidateId || "seed"}-${Date.now()}-${round}`;
 
-    const response = await fetch(`${baseUrl}/mcq/generate`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        job_id: input.jobId || `job-${Math.abs(jobDescription.length + input.skills.length)}`,
-        job_description: jobDescription,
-        candidate_id: candidateId,
-        company_tier: input.companyTier || "general",
-        candidate_performance_score: input.candidatePerformanceScore,
-      }),
-    });
+    try {
+      const response = await fetch(`${baseUrl}/mcq/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          job_id: input.jobId || `job-${Math.abs(jobDescription.length + input.skills.length)}`,
+          job_description: jobDescription,
+          candidate_id: candidateId,
+          job_role: input.jobRole || input.jobTitle || undefined,
+          company_tier: input.companyTier || "general",
+          candidate_performance_score: input.candidatePerformanceScore,
+          experience_level: input.experienceLevel,
+          seed: input.seed || `${candidateId}:${round}`,
+        }),
+      });
+      if (!response.ok) continue;
+      const payload = (await response.json()) as McqEngineGenerateResponse;
+      const questions = payload.questions || [];
 
-    if (!response.ok) continue;
-    const payload = (await response.json()) as McqEngineGenerateResponse;
-    const questions = payload.questions || [];
-
-    for (const item of questions) {
-      const mapped = mapEngineQuestion(item);
-      if (!mapped) continue;
-      uniqueByText.set(mapped.questionText.trim().toLowerCase(), mapped);
+      for (const item of questions) {
+        const mapped = mapEngineQuestion(item);
+        if (!mapped) continue;
+        uniqueByText.set(mapped.questionText.trim().toLowerCase(), mapped);
+      }
+    } catch {
+      continue;
     }
 
     if (uniqueByText.size >= targetCount) break;
@@ -163,9 +174,13 @@ export async function generateMcqsFromContext(input: {
   skills: string[];
   count: number;
   jobId?: string;
+  jobRole?: string;
   candidateId?: string;
   companyTier?: "faang" | "startup" | "enterprise" | "general";
   candidatePerformanceScore?: number;
+  experienceLevel?: "fresher" | "junior" | "mid" | "senior";
+  seed?: string;
+  requireEngine?: boolean;
   jobTitle?: string;
   jobDescription?: string;
   difficultyHint?: "balanced" | "challenging";
@@ -173,18 +188,29 @@ export async function generateMcqsFromContext(input: {
   const skills = input.skills || [];
   const count = input.count;
 
-  const engineQuestions = await generateViaMcqEngine({
-    skills,
-    count,
-    jobId: input.jobId,
-    candidateId: input.candidateId,
-    companyTier: input.companyTier,
-    candidatePerformanceScore: input.candidatePerformanceScore,
-    jobTitle: input.jobTitle,
-    jobDescription: input.jobDescription,
-  });
+  let engineQuestions: McqQuestionInput[] | null = null;
+  try {
+    engineQuestions = await generateViaMcqEngine({
+      skills,
+      count,
+      jobId: input.jobId,
+      jobRole: input.jobRole,
+      candidateId: input.candidateId,
+      companyTier: input.companyTier,
+      candidatePerformanceScore: input.candidatePerformanceScore,
+      experienceLevel: input.experienceLevel,
+      seed: input.seed,
+      jobTitle: input.jobTitle,
+      jobDescription: input.jobDescription,
+    });
+  } catch {
+    engineQuestions = null;
+  }
   if (engineQuestions?.length) {
     return engineQuestions.slice(0, count);
+  }
+  if (input.requireEngine) {
+    throw new Error("MCQ engine is unavailable. Start the engine and retry.");
   }
 
   const openAiKey = process.env.OPENAI_API_KEY;
@@ -207,19 +233,23 @@ At least 70% questions should require applied reasoning rather than definitions.
 At least 40% questions should involve debugging, trade-off analysis, or real-world constraints.
 Return ONLY JSON array: [{questionText, options(4), correctOption(0-3), skillTag, difficulty}].`;
 
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${openAiKey}`,
-    },
-    body: JSON.stringify({
-      model: process.env.OPENAI_LLM_MODEL || "gpt-4o-mini",
-      temperature: 0.4,
-      messages: [{ role: "user", content: prompt }],
-    }),
-  });
-
+  let response: Response;
+  try {
+    response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${openAiKey}`,
+      },
+      body: JSON.stringify({
+        model: process.env.OPENAI_LLM_MODEL || "gpt-4o-mini",
+        temperature: 0.4,
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+  } catch {
+    return fallbackQuestions(skills, count);
+  }
   if (!response.ok) {
     return fallbackQuestions(skills, count);
   }

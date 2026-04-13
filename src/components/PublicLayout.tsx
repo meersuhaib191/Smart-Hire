@@ -29,7 +29,6 @@ export const PublicLayout = ({ children }: { children: React.ReactNode }) => {
 
           <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-600 dark:text-slate-300">
             <Link href="/features" className="transition-colors hover:text-indigo-600 dark:hover:text-indigo-300">Features</Link>
-            <Link href="/pricing" className="transition-colors hover:text-indigo-600 dark:hover:text-indigo-300">Pricing</Link>
             <Link href="/jobs" className="transition-colors hover:text-indigo-600 dark:hover:text-indigo-300">Jobs</Link>
           </nav>
 
