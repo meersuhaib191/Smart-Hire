@@ -181,6 +181,27 @@ export async function runDeadlineShortlistForJob(
       scoreMap.set(missingId, 0);
     }
 
+    // Ensure ATS stage rows exist so HR dashboards can always display ATS score.
+    const atsStageRows = applications.map((app) => ({
+      application_id: app.id,
+      stage_type: "ATS" as const,
+      score: Number(scoreMap.get(app.id) || 0),
+      passed: true,
+      evaluated_at: new Date().toISOString(),
+      breakdown: {
+        source: "shortlist_sweep",
+        fallback_zero_score: missingAtsIds.includes(app.id),
+        ats_refresh_warning: atsWarning,
+      },
+    }));
+    const atsStageUpsert = await admin
+      .from("stage_results")
+      .upsert(atsStageRows, { onConflict: "application_id,stage_type" });
+    if (atsStageUpsert.error) {
+      // Do not fail shortlist over ATS stage persistence; ranking still remains authoritative.
+      console.warn("shortlist ATS stage upsert warning:", atsStageUpsert.error.message);
+    }
+
     const ranked = [...applications].sort((a, b) => {
       const diff = (scoreMap.get(b.id) || 0) - (scoreMap.get(a.id) || 0);
       if (Math.abs(diff) > 0.0001) return diff;
