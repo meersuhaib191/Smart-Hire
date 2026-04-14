@@ -8,12 +8,18 @@ on:
 jobs:
   run-shortlist-sweep:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: shortlist-sweep
+      cancel-in-progress: false
     steps:
       - name: Trigger shortlist sweep endpoint
         env:
           SHORTLIST_SWEEP_URL: ${{ secrets.SHORTLIST_SWEEP_URL }}
           SHORTLIST_CRON_SECRET: ${{ secrets.SHORTLIST_CRON_SECRET }}
         run: |
+          set -euo pipefail
+
           if [ -z "$SHORTLIST_SWEEP_URL" ]; then
             echo "Missing SHORTLIST_SWEEP_URL GitHub secret"
             exit 1
@@ -24,7 +30,35 @@ jobs:
             exit 1
           fi
 
-          curl --fail --show-error --silent \
-            -X POST "$SHORTLIST_SWEEP_URL" \
-            -H "x-shortlist-secret: $SHORTLIST_CRON_SECRET" \
-            -H "content-type: application/json"
+          echo "Running shortlist sweep at: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          echo "Target: $SHORTLIST_SWEEP_URL"
+
+          body_file="$(mktemp)"
+          http_code=$(
+            curl --silent --show-error \
+              --retry 3 \
+              --retry-delay 5 \
+              --retry-all-errors \
+              --connect-timeout 10 \
+              --max-time 60 \
+              -X POST "$SHORTLIST_SWEEP_URL" \
+              -H "x-shortlist-secret: $SHORTLIST_CRON_SECRET" \
+              -H "content-type: application/json" \
+              -o "$body_file" \
+              -w "%{http_code}"
+          )
+
+          echo "HTTP status: $http_code"
+          echo "Response:"
+          cat "$body_file"
+          echo
+
+          if [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then
+            echo "Shortlist sweep request failed with status $http_code"
+            exit 1
+          fi
+
+          if ! grep -q '"success":true' "$body_file"; then
+            echo "Shortlist sweep response did not report success=true"
+            exit 1
+          fi

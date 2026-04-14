@@ -1,6 +1,22 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdmin } from "@/server/supabase/admin";
 import { requireAuthUser, requireHr } from "@/server/auth/session";
+import { runDeadlineShortlistForJob } from "@/server/pipeline/shortlist";
+
+function shouldAutoRunShortlist(input: {
+  status?: string | null;
+  shortlist_status?: string | null;
+  submission_deadline_at?: string | null;
+}): boolean {
+  const status = String(input.status || "").toUpperCase();
+  if (!["PUBLISHED", "CLOSED"].includes(status)) return false;
+  const shortlistStatus = String(input.shortlist_status || "").toLowerCase();
+  if (!["", "pending", "failed", "running"].includes(shortlistStatus)) return false;
+  const deadlineIso = String(input.submission_deadline_at || "");
+  if (!deadlineIso) return false;
+  const deadlineMs = new Date(deadlineIso).getTime();
+  return Number.isFinite(deadlineMs) && deadlineMs <= Date.now();
+}
 
 export async function GET(_request: Request, context: { params: Promise<{ jobId: string }> }) {
   try {
@@ -9,13 +25,38 @@ export async function GET(_request: Request, context: { params: Promise<{ jobId:
     const { jobId } = await context.params;
 
     const admin = createSupabaseAdmin();
-    const { data: jobMeta } = await admin
+    let { data: jobMeta } = await admin
       .from("jobs")
       .select(
-        "id, title, submission_deadline_at, shortlist_status, shortlist_error, shortlist_ran_at, shortlist_selected_count, shortlist_total_submissions"
+        "id, title, status, submission_deadline_at, shortlist_status, shortlist_error, shortlist_ran_at, shortlist_selected_count, shortlist_total_submissions"
       )
       .eq("id", jobId)
       .maybeSingle();
+
+    if (
+      jobMeta &&
+      shouldAutoRunShortlist({
+        status: (jobMeta as { status?: string | null }).status,
+        shortlist_status: (jobMeta as { shortlist_status?: string | null }).shortlist_status,
+        submission_deadline_at: (jobMeta as { submission_deadline_at?: string | null }).submission_deadline_at,
+      })
+    ) {
+      try {
+        await runDeadlineShortlistForJob(admin, jobId);
+      } catch {
+        // Non-fatal for analytics read.
+      }
+      const refreshed = await admin
+        .from("jobs")
+        .select(
+          "id, title, status, submission_deadline_at, shortlist_status, shortlist_error, shortlist_ran_at, shortlist_selected_count, shortlist_total_submissions"
+        )
+        .eq("id", jobId)
+        .maybeSingle();
+      if (refreshed.data) {
+        jobMeta = refreshed.data;
+      }
+    }
     let { data: apps, error: appsError } = await admin
       .from("applications")
       .select("id, user_id, pipeline_step")

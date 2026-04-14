@@ -88,8 +88,17 @@ export async function runDeadlineShortlistForJob(
   if (jobError || !jobData) throw new Error(jobError?.message || "Job not found.");
   const job = jobData as JobShortlistRow;
 
-  if (String(job.status || "").toUpperCase() !== "PUBLISHED") {
-    return { jobId, totalApplicants: 0, shortlisted: 0, rejected: 0, rankingsWritten: 0, status: "skipped", reason: "job_not_published" };
+  const normalizedJobStatus = String(job.status || "").toUpperCase();
+  if (!["PUBLISHED", "CLOSED"].includes(normalizedJobStatus)) {
+    return {
+      jobId,
+      totalApplicants: 0,
+      shortlisted: 0,
+      rejected: 0,
+      rankingsWritten: 0,
+      status: "skipped",
+      reason: "job_not_open_or_closed",
+    };
   }
   if (!job.submission_deadline_at) {
     return { jobId, totalApplicants: 0, shortlisted: 0, rejected: 0, rankingsWritten: 0, status: "skipped", reason: "no_submission_deadline" };
@@ -107,12 +116,23 @@ export async function runDeadlineShortlistForJob(
   });
 
   try {
-    const atsResult = await runAtsScreeningForJob({
-      admin,
-      jobId: job.id,
-      notifyApplicants: false,
-      passScore: 0,
-    });
+    let atsScoresByApplicationId: Record<string, number> = {};
+    let atsWarning: string | null = null;
+    try {
+      const atsResult = await runAtsScreeningForJob({
+        admin,
+        jobId: job.id,
+        notifyApplicants: false,
+        passScore: 0,
+      });
+      atsScoresByApplicationId = (atsResult.scoresByApplicationId || {}) as Record<string, number>;
+    } catch (atsError) {
+      // Do not block shortlist progression if ATS provider is rate-limited.
+      atsWarning =
+        atsError instanceof Error
+          ? `ATS refresh skipped: ${atsError.message}`
+          : "ATS refresh skipped due to unknown error.";
+    }
 
     const { data: appRows, error: appsError } = await admin
       .from("applications")
@@ -147,7 +167,7 @@ export async function runDeadlineShortlistForJob(
     if (stageError) throw new Error(stageError.message);
 
     const scoreMap = new Map<string, number>();
-    for (const [appId, score] of Object.entries(atsResult.scoresByApplicationId || {})) {
+    for (const [appId, score] of Object.entries(atsScoresByApplicationId || {})) {
       scoreMap.set(String(appId), Number(score || 0));
     }
     for (const row of atsStages || []) {
@@ -156,13 +176,9 @@ export async function runDeadlineShortlistForJob(
       }
     }
 
-    const missingAtsIds = applications
-      .map((a) => a.id)
-      .filter((id) => !scoreMap.has(id));
-    if (missingAtsIds.length > 0) {
-      throw new Error(
-        `ATS scoring incomplete: scored ${applications.length - missingAtsIds.length}/${applications.length} applications.`
-      );
+    const missingAtsIds = applications.map((a) => a.id).filter((id) => !scoreMap.has(id));
+    for (const missingId of missingAtsIds) {
+      scoreMap.set(missingId, 0);
     }
 
     const ranked = [...applications].sort((a, b) => {
@@ -296,7 +312,7 @@ export async function runDeadlineShortlistForJob(
     await updateJobShortlistState(admin, job.id, {
       shortlist_status: "completed",
       shortlist_ran_at: new Date().toISOString(),
-      shortlist_error: null,
+      shortlist_error: atsWarning,
       shortlist_selected_count: selected.length,
       shortlist_total_submissions: ranked.length,
       status: "CLOSED",

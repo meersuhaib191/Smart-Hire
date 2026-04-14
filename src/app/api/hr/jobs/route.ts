@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseAdmin } from "@/server/supabase/admin";
 import { requireAuthUser, requireHr } from "@/server/auth/session";
 import { buildDefaultChallenge } from "@/server/coding/seedChallenge";
+import { runDeadlineShortlistForJob } from "@/server/pipeline/shortlist";
 
 type CreateJobBody = {
   title: string;
@@ -31,6 +32,24 @@ const isMissingShortlistColumns = (message?: string) =>
   (message || "").includes("column jobs.shortlist_total_submissions does not exist");
 const isMissingDeadlineColumn = (message?: string) =>
   (message || "").includes("column jobs.submission_deadline_at does not exist");
+
+type JobShortlistCandidate = {
+  id: string;
+  status?: string | null;
+  submission_deadline_at?: string | null;
+  shortlist_status?: string | null;
+};
+
+function shouldAutoRunShortlist(job: JobShortlistCandidate, nowMs: number): boolean {
+  const status = String(job.status || "").toUpperCase();
+  if (!["PUBLISHED", "CLOSED"].includes(status)) return false;
+  const shortlistStatus = String(job.shortlist_status || "").toLowerCase();
+  if (!["", "pending", "failed", "running"].includes(shortlistStatus)) return false;
+  const deadlineIso = String(job.submission_deadline_at || "");
+  if (!deadlineIso) return false;
+  const deadlineMs = new Date(deadlineIso).getTime();
+  return Number.isFinite(deadlineMs) && deadlineMs <= nowMs;
+}
 
 async function resolveCompanyId(
   admin: ReturnType<typeof createSupabaseAdmin>,
@@ -154,7 +173,18 @@ export async function GET() {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ jobs: (data as unknown[]) || [] });
+    const jobs = ((data as unknown[]) || []) as JobShortlistCandidate[];
+    const nowMs = Date.now();
+    const dueJobs = jobs.filter((job) => shouldAutoRunShortlist(job, nowMs)).slice(0, 3);
+    for (const job of dueJobs) {
+      try {
+        await runDeadlineShortlistForJob(admin, job.id);
+      } catch {
+        // Keep GET non-blocking; shortlist failures are visible in shortlist_error.
+      }
+    }
+
+    return NextResponse.json({ jobs });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to load jobs.";
     const status =
