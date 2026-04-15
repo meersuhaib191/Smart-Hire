@@ -1,13 +1,31 @@
 import { NextResponse } from "next/server";
-import { createEmbedding, vectorToSql } from "@/server/ats/embedding";
-import { extractResumeText } from "@/server/ats/parseResume";
 import { createSupabaseAdmin } from "@/server/supabase/admin";
 import { AtsResult } from "@/server/ats/types";
 import { syncPipelineStep } from "@/server/pipeline/syncPipeline";
 
 const ATS_PASS_SCORE = Number(process.env.ATS_PASS_SCORE || 60);
+const ATS_ENGINE_BASE_URL = String(process.env.ATS_ENGINE_BASE_URL || "").replace(/\/+$/, "");
 
-const asScore = (similarity: number) => Math.max(0, Math.min(100, similarity * 100));
+const asScore = (value: number) => Math.max(0, Math.min(100, value));
+
+async function scoreWithAtsEngine(file: File, jobText: string): Promise<{ score100: number; raw?: unknown } | null> {
+  if (!ATS_ENGINE_BASE_URL) return null;
+  try {
+    const form = new FormData();
+    form.append("resume", file);
+    form.append("job_text", jobText);
+    const response = await fetch(`${ATS_ENGINE_BASE_URL}/score`, {
+      method: "POST",
+      body: form,
+    });
+    if (!response.ok) return null;
+    const payload = (await response.json()) as { score?: number };
+    const score01 = Number(payload?.score ?? 0);
+    return { score100: asScore(score01 * 100), raw: payload };
+  } catch {
+    return null;
+  }
+}
 
 export async function POST(request: Request) {
   try {
@@ -39,48 +57,24 @@ export async function POST(request: Request) {
       job.job_skills?.map((s: { skill_name: string }) => s.skill_name).filter(Boolean).join(", ") || "";
     const jobSemanticText = `${job.description}\nRequired skills: ${skillText}`.trim();
 
-    const resumeText = resumeTextInput.trim() || (resumeFile ? await extractResumeText(resumeFile) : "");
-    if (!resumeText) {
-      return NextResponse.json({ error: "Could not extract resume text." }, { status: 400 });
+    if (!ATS_ENGINE_BASE_URL) {
+      return NextResponse.json({ error: "ATS_ENGINE_BASE_URL is not configured." }, { status: 500 });
     }
 
-    const [resumeEmbedding, jobEmbedding] = await Promise.all([
-      createEmbedding(resumeText),
-      createEmbedding(jobSemanticText),
-    ]);
-
-    const resumeVectorSql = vectorToSql(resumeEmbedding);
-    const jobVectorSql = vectorToSql(jobEmbedding);
-
-    const { error: resumeEmbError } = await supabase.from("resume_embeddings").upsert(
-      {
-        application_id: applicationId,
-        embedding: resumeVectorSql,
-      },
-      { onConflict: "application_id" }
-    );
-    if (resumeEmbError) {
-      return NextResponse.json({ error: "Failed to store resume embedding.", detail: resumeEmbError.message }, { status: 500 });
+    const fileForEngine =
+      resumeFile ||
+      (resumeTextInput.trim()
+        ? new File([resumeTextInput.trim()], "resume.txt", { type: "text/plain" })
+        : null);
+    if (!fileForEngine) {
+      return NextResponse.json({ error: "Could not prepare resume input for ATS engine." }, { status: 400 });
     }
 
-    const { error: jobEmbError } = await supabase.from("job_embeddings").upsert(
-      {
-        job_id: jobId,
-        embedding: jobVectorSql,
-      },
-      { onConflict: "job_id" }
-    );
-    if (jobEmbError) {
-      return NextResponse.json({ error: "Failed to store job embedding.", detail: jobEmbError.message }, { status: 500 });
+    const atsEngineResult = await scoreWithAtsEngine(fileForEngine, jobSemanticText);
+    if (!atsEngineResult) {
+      return NextResponse.json({ error: "ATS engine request failed." }, { status: 502 });
     }
-
-    const { data: scoreData, error: scoreError } = await supabase.rpc("compute_ats_similarity", {
-      resume_embedding: resumeVectorSql,
-      job_embedding: jobVectorSql,
-    });
-
-    const similarity = scoreError ? 0 : Number(scoreData ?? 0);
-    const atsScore = asScore(similarity);
+    const atsScore = atsEngineResult.score100;
 
     const { data: existingStage } = await supabase
       .from("stage_results")
@@ -95,8 +89,8 @@ export async function POST(request: Request) {
         .update({
           score: atsScore,
           breakdown: {
-            similarity,
-            extracted_text_length: resumeText.length,
+            source: "ats_engine",
+            ats_engine: atsEngineResult.raw,
           },
           passed: atsScore >= ATS_PASS_SCORE,
           evaluated_at: new Date().toISOString(),
@@ -111,8 +105,8 @@ export async function POST(request: Request) {
         stage_type: "ATS",
         score: atsScore,
         breakdown: {
-          similarity,
-          extracted_text_length: resumeText.length,
+          source: "ats_engine",
+          ats_engine: atsEngineResult.raw,
         },
         passed: atsScore >= ATS_PASS_SCORE,
       });
@@ -125,8 +119,8 @@ export async function POST(request: Request) {
       applicationId,
       jobId,
       atsScore: Number(atsScore.toFixed(2)),
-      similarity: Number(similarity.toFixed(4)),
-      extractedTextLength: resumeText.length,
+      similarity: Number((atsScore / 100).toFixed(4)),
+      extractedTextLength: resumeTextInput.trim().length || 0,
     };
 
     try {

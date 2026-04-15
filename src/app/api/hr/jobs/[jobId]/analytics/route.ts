@@ -133,10 +133,13 @@ export async function GET(_request: Request, context: { params: Promise<{ jobId:
     }
 
     const candidates = (apps || []).map((a) => {
-      const atsStage = (stagesByApp[a.id] || []).find((s) => String(s.stage_type).toUpperCase() === "ATS");
-      const rankingScoreRaw = (rankByApp[a.id]?.final_score ?? null) as number | string | null;
-      const rankingScore =
-        rankingScoreRaw == null ? null : Number.isFinite(Number(rankingScoreRaw)) ? Number(rankingScoreRaw) : null;
+      const atsStage = (stagesByApp[a.id] || []).find((s) => {
+        if (String(s.stage_type).toUpperCase() !== "ATS") return false;
+        const breakdown = (s as { breakdown?: { source?: string; fallback_zero_score?: boolean } }).breakdown;
+        // Ignore synthetic zero rows created only as fallback during ATS outages.
+        if (breakdown?.source === "shortlist_sweep" && breakdown?.fallback_zero_score === true) return false;
+        return true;
+      });
       const rawMatchedSkills = (
         (atsStage as { breakdown?: { ats_engine?: { matched_skills?: unknown[] } } })?.breakdown?.ats_engine
           ?.matched_skills || []
@@ -153,7 +156,7 @@ export async function GET(_request: Request, context: { params: Promise<{ jobId:
       finalScore: rankByApp[a.id]?.final_score ?? null,
       rankPosition: rankByApp[a.id]?.rank_position ?? null,
       stages: stagesByApp[a.id] || [],
-      atsScore: atsStage?.score ?? rankingScore ?? null,
+      atsScore: atsStage?.score ?? null,
       skills,
     };
     });

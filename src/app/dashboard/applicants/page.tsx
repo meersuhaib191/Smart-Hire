@@ -35,6 +35,7 @@ type ShortlistMeta = {
   title: string;
   submissionDeadlineAt: string | null;
   shortlistStatus: string | null;
+  shortlistError?: string | null;
   shortlistRanAt: string | null;
   shortlistSelectedCount: number;
   shortlistTotalSubmissions: number;
@@ -304,6 +305,14 @@ export default function ApplicantsDashboard() {
               <p className="text-xs uppercase tracking-wide text-slate-500">Total Submissions</p>
               <p className="text-sm font-medium text-slate-900">{shortlistMeta.shortlistTotalSubmissions || 0}</p>
             </div>
+            {shortlistMeta.shortlistStatus === "failed" ? (
+              <div className="md:col-span-2 xl:col-span-4 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                <p className="text-xs uppercase tracking-wide text-amber-700">Shortlist Error</p>
+                <p className="text-sm font-medium text-amber-900">
+                  {shortlistMeta.shortlistError || "Shortlist run failed. Check ATS engine connectivity/configuration."}
+                </p>
+              </div>
+            ) : null}
           </CardContent>
         </Card>
       ) : null}

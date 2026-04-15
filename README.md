@@ -206,6 +206,8 @@ Final:
 - Production URL: `https://smart-hire-pearl.vercel.app`
 - Internal sweep endpoint:
   - `/api/internal/shortlist/sweep`
+- Internal ATS health endpoint:
+  - `/api/internal/ats/health`
 - Required server env (minimum shortlist-related):
   - `SHORTLIST_CRON_SECRET`
   - optional: `SHORTLIST_MAX`, `SHORTLIST_MIN`, `SHORTLIST_MCQ_WINDOW_HOURS`, `ATS_ENGINE_BASE_URL`

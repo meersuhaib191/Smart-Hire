@@ -126,6 +126,11 @@ export default function HrCandidatesPage() {
               until shortlist reruns successfully.
             </p>
           ) : null}
+          {!error && jobMeta?.shortlistStatus !== "failed" && jobMeta?.shortlistError ? (
+            <p className="text-sm text-amber-700">
+              ATS warning: {jobMeta.shortlistError}. Showing only verified ATS scores; missing scores will appear as "-".
+            </p>
+          ) : null}
           {!sorted.length && !error ? <p className="text-sm text-slate-500 dark:text-slate-300">No candidates found for this job.</p> : null}
           {sorted.map((candidate) => (
             <motion.div

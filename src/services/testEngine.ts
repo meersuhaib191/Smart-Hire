@@ -80,15 +80,31 @@ export function experienceYearsToBucket(years: number): ExperienceBucket {
   return "senior";
 }
 
+function parseDifficultyMixFromEnv(key: string): Record<DifficultyLevel, number> | null {
+  const raw = String(process.env[key] || "").trim();
+  if (!raw) return null;
+  const parts = raw.split(",").map((p) => Number(p.trim()));
+  if (parts.length !== 3) return null;
+  const [basic, intermediate, advanced] = parts;
+  if (![basic, intermediate, advanced].every((n) => Number.isInteger(n) && n >= 0)) return null;
+  if (basic + intermediate + advanced !== 10) return null;
+  return { basic, intermediate, advanced };
+}
+
 /** Lean away from "basic" so tests feel role-relevant (still 10 questions). */
 export function difficultyMixForBucket(bucket: ExperienceBucket): Record<DifficultyLevel, number> {
+  const fresherOverride = parseDifficultyMixFromEnv("MCQ_MIX_FRESHER");
+  const midOverride = parseDifficultyMixFromEnv("MCQ_MIX_MID");
+  const seniorOverride = parseDifficultyMixFromEnv("MCQ_MIX_SENIOR");
+
   switch (bucket) {
     case "fresher":
-      return { basic: 3, intermediate: 5, advanced: 2 };
+      // Harder default for fresher than before (less basic, more applied questions).
+      return fresherOverride || { basic: 2, intermediate: 5, advanced: 3 };
     case "mid":
-      return { basic: 2, intermediate: 4, advanced: 4 };
+      return midOverride || { basic: 2, intermediate: 4, advanced: 4 };
     case "senior":
-      return { basic: 1, intermediate: 3, advanced: 6 };
+      return seniorOverride || { basic: 1, intermediate: 3, advanced: 6 };
     default:
       return { basic: 2, intermediate: 4, advanced: 4 };
   }

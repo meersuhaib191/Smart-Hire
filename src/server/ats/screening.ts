@@ -1,6 +1,4 @@
 import { createSupabaseAdmin } from "@/server/supabase/admin";
-import { createEmbedding, vectorToSql } from "@/server/ats/embedding";
-import { extractResumeText } from "@/server/ats/parseResume";
 import { createUserNotification } from "@/server/notifications/createNotification";
 
 const DEFAULT_ATS_PASS_SCORE = Number(process.env.ATS_PASS_SCORE || 60);
@@ -94,6 +92,9 @@ export async function runAtsScreeningForJob(options: AtsScreeningOptions): Promi
   const admin = options.admin;
   const notifyApplicants = Boolean(options.notifyApplicants);
   const passScore = Number.isFinite(options.passScore) ? Number(options.passScore) : DEFAULT_ATS_PASS_SCORE;
+  if (!ATS_ENGINE_BASE_URL) {
+    throw new Error("ATS_ENGINE_BASE_URL is not configured.");
+  }
 
   const { data: job, error: jobError } = await admin
     .from("jobs")
@@ -111,17 +112,6 @@ export async function runAtsScreeningForJob(options: AtsScreeningOptions): Promi
       .filter(Boolean)
       .join(", ") || "";
   const jobSemanticText = `${typedJob.description}\nRequired skills: ${skillText}`.trim();
-
-  // Keep pgvector embeddings in sync for existing analytics/RPC usage.
-  const jobEmbedding = await createEmbedding(jobSemanticText);
-  const jobVectorSql = vectorToSql(jobEmbedding);
-  await admin.from("job_embeddings").upsert(
-    {
-      job_id: options.jobId,
-      embedding: jobVectorSql,
-    },
-    { onConflict: "job_id" }
-  );
 
   const { data: applications, error: appsError } = await admin
     .from("applications")
@@ -151,47 +141,16 @@ export async function runAtsScreeningForJob(options: AtsScreeningOptions): Promi
       const arrayBuffer = await fileData.arrayBuffer();
       const contentType = fileData.type || "application/pdf";
       const file = new File([arrayBuffer], "resume.pdf", { type: contentType });
-
-      let atsScore = 0;
-      let similarity = 0;
-      let breakdown: Record<string, unknown> = {};
-
-      // Prefer ATS engine when configured; fallback to existing embedding similarity path.
       const atsEngineResult = await scoreWithAtsEngine(file, jobSemanticText);
-      if (atsEngineResult) {
-        atsScore = atsEngineResult.score100;
-        similarity = atsScore / 100;
-        breakdown = {
-          source: "ats_engine",
-          ats_engine: atsEngineResult.raw,
-        };
-      } else {
-        const resumeText = await extractResumeText(file);
-        if (!resumeText.trim()) {
-          skipped += 1;
-          continue;
-        }
-        const resumeEmbedding = await createEmbedding(resumeText);
-        const resumeVectorSql = vectorToSql(resumeEmbedding);
-        await admin.from("resume_embeddings").upsert(
-          {
-            application_id: row.id,
-            embedding: resumeVectorSql,
-          },
-          { onConflict: "application_id" }
-        );
-        const { data: scoreData, error: scoreError } = await admin.rpc("compute_ats_similarity", {
-          resume_embedding: resumeVectorSql,
-          job_embedding: jobVectorSql,
-        });
-        similarity = scoreError ? 0 : Number(scoreData ?? 0);
-        atsScore = asScore(similarity * 100);
-        breakdown = {
-          source: "pgvector_similarity",
-          similarity,
-          extracted_text_length: resumeText.length,
-        };
+      if (!atsEngineResult) {
+        failed += 1;
+        continue;
       }
+      const atsScore = atsEngineResult.score100;
+      const breakdown: Record<string, unknown> = {
+        source: "ats_engine",
+        ats_engine: atsEngineResult.raw,
+      };
 
       const passed = atsScore >= passScore;
       await upsertAtsStageResult(admin, row.id, atsScore, passed, breakdown);
