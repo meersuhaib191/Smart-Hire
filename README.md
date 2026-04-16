@@ -2,7 +2,6 @@
 
 ## Abstract
 
-
 Smart Hire AI is a production-oriented hiring platform that combines a web application, an ATS/NLP backend, and automated deadline-based orchestration for candidate progression. The system evaluates applicants across ATS semantic matching, MCQ, coding, and interview stages, then computes weighted outcomes for HR decision-making.  
 This document is written as a research-style implementation report covering architecture, evolution, experiments, replacements, and practical differentiators versus conventional hiring systems.
 
