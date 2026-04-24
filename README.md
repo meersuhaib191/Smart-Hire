@@ -6,7 +6,6 @@ Smart Hire AI is a production-oriented hiring platform that combines a web appli
 This document is written as a research-style implementation report covering architecture, evolution, experiments, replacements, and practical differentiators versus conventional hiring systems.
 
 
-
 ## 1. Problem Statement
 
 Traditional hiring tools often suffer from: 
