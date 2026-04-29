@@ -1,12 +1,11 @@
 "use client";
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useStore } from '@/store/useStore';
-import { Bell, LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, Search, Sun } from 'lucide-react';
+import { Bell, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Search } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { useRouter } from 'next/navigation';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useTheme } from '@/hooks/useTheme';
 
 type HeaderProps = {
   desktopCollapsed: boolean;
@@ -23,8 +22,6 @@ export const Header = ({ desktopCollapsed, onToggleDesktop, onToggleMobile }: He
   const [jobs, setJobs] = useState<Array<{ id: string; title: string }>>([]);
   const [selectedJobId, setSelectedJobId] = useState('');
   const [unreadCount, setUnreadCount] = useState(0);
-  const { resolvedTheme, toggleTheme } = useTheme();
-  const isDark = resolvedTheme === 'dark';
 
   const loadNotifications = useCallback(async () => {
     if (!isApplicant && !isHr) return;
@@ -120,10 +117,6 @@ export const Header = ({ desktopCollapsed, onToggleDesktop, onToggleMobile }: He
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
-          <Button variant="ghost" size="icon" className="rounded-xl text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-white/10 dark:hover:text-white" onClick={toggleTheme}>
-            {isDark ? <Sun size={18} /> : <Moon size={18} />}
-          </Button>
-
           <Button
             variant="ghost"
             size="icon"

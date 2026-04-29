@@ -96,6 +96,7 @@ export default function Page() {
   const activeDeadline = data.activeDirective?.deadline_at || null;
   const activeDirectives = data.activeDirective?.directives || "";
   const canProceed = data.canProceedCurrentRound !== false;
+  const mcqCompleted = data.stages.some((s) => String(s.stage_type || "").toUpperCase() === "MCQ");
 
   return (
     <div className="space-y-6">
@@ -179,7 +180,7 @@ export default function Page() {
         </Card>
       ) : null}
 
-      {step === "MCQ" ? (
+      {step === "MCQ" && !mcqCompleted ? (
         <Card className="rounded-2xl border-slate-200/80 shadow-sm">
           <CardHeader>
             <CardTitle>MCQ Assessment</CardTitle>

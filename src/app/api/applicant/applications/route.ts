@@ -127,6 +127,45 @@ export async function GET() {
       return `/dashboard/applicant/applications/${appId}`;
     };
 
+    const mcqCompletedByAppId = new Set<string>();
+    if (rows.length) {
+      const appIds = rows.map((r) => r.id);
+      const { data: attempts, error: attemptsError } = await admin
+        .from("mcq_attempts")
+        .select("application_id")
+        .in("application_id", appIds);
+      if (attemptsError && !String(attemptsError.message || "").includes("does not exist")) {
+        return NextResponse.json({ error: attemptsError.message }, { status: 500 });
+      }
+      for (const row of attempts || []) {
+        mcqCompletedByAppId.add(String(row.application_id));
+      }
+
+      const { data: mcqStages, error: mcqStagesError } = await admin
+        .from("stage_results")
+        .select("application_id, stage_type")
+        .in("application_id", appIds)
+        .eq("stage_type", "MCQ");
+      if (mcqStagesError && !String(mcqStagesError.message || "").includes("does not exist")) {
+        return NextResponse.json({ error: mcqStagesError.message }, { status: 500 });
+      }
+      for (const row of mcqStages || []) {
+        mcqCompletedByAppId.add(String(row.application_id));
+      }
+
+      const { data: candidateTests, error: candidateTestsError } = await admin
+        .from("candidate_tests")
+        .select("application_id, status")
+        .in("application_id", appIds)
+        .eq("status", "completed");
+      if (candidateTestsError && !String(candidateTestsError.message || "").includes("does not exist")) {
+        return NextResponse.json({ error: candidateTestsError.message }, { status: 500 });
+      }
+      for (const row of candidateTests || []) {
+        mcqCompletedByAppId.add(String(row.application_id));
+      }
+    }
+
     const enriched = applications.map((row) => {
       const control = controlsByApp.get(row.id);
       const step = String(row.pipeline_step || "").toUpperCase();
@@ -134,7 +173,8 @@ export async function GET() {
       const deadlineAt = matchesStep ? control?.deadline_at || null : null;
       const directives = matchesStep ? control?.directives || null : null;
       const deadlineExpired = Boolean(deadlineAt) && new Date(String(deadlineAt)).getTime() < Date.now();
-      const canProceed = ["MCQ", "CODING", "INTERVIEW"].includes(step) && !deadlineExpired;
+      const mcqCompleted = step === "MCQ" && mcqCompletedByAppId.has(row.id);
+      const canProceed = ["MCQ", "CODING", "INTERVIEW"].includes(step) && !deadlineExpired && !mcqCompleted;
       return {
         ...row,
         roundDeadlineAt: deadlineAt,

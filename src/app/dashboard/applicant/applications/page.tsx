@@ -69,19 +69,26 @@ export default function Page() {
               />
             ) : null}
             {rows.map((r) => (
-              <div key={r.id} className="flex items-center justify-between rounded-xl border border-slate-200 p-4 transition hover:bg-slate-50/70">
+              <div
+                key={r.id}
+                className="group flex items-center justify-between rounded-xl border border-slate-200 bg-white/80 p-4 shadow-sm transition-all hover:border-indigo-200 hover:bg-indigo-50/40 hover:shadow-md dark:border-slate-700 dark:bg-slate-900/50 dark:hover:border-slate-500 dark:hover:bg-slate-800/70"
+              >
                 <div>
-                  <p className="font-medium text-slate-900">{r.jobs?.title || "Job"}</p>
-                  <p className="text-xs text-slate-500">
+                  <p className="font-medium text-slate-900 transition-colors group-hover:text-slate-950 dark:text-slate-100 dark:group-hover:text-white">
+                    {r.jobs?.title || "Job"}
+                  </p>
+                  <p className="text-xs text-slate-600 transition-colors group-hover:text-slate-700 dark:text-slate-300 dark:group-hover:text-slate-200">
                     Stage: {r.pipeline_step} · Status: {r.current_stage}
                   </p>
                   {r.roundDeadlineAt ? (
-                    <p className="mt-1 text-xs text-amber-700">
+                    <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
                       Deadline: {new Date(r.roundDeadlineAt).toLocaleString()}
                     </p>
                   ) : null}
                   {r.roundDirectives ? (
-                    <p className="mt-1 line-clamp-2 text-xs text-slate-500">HR directives: {r.roundDirectives}</p>
+                    <p className="mt-1 line-clamp-2 text-xs text-slate-600 transition-colors group-hover:text-slate-700 dark:text-slate-300 dark:group-hover:text-slate-200">
+                      HR directives: {r.roundDirectives}
+                    </p>
                   ) : null}
                 </div>
                 <div className="flex items-center gap-2">
