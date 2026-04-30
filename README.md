@@ -16,7 +16,6 @@ Traditional hiring tools often suffer from:
 - low explainability of candidate ranking,
 - poor deadline automation and weak operational observability.
 
-
 Smart Hire AI was built to provide one coherent pipeline where shortlisting is deadline-triggered, data-backed, explainable, and integrated with downstream assessment rounds.
 
 ## 2. Research Objectives
