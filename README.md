@@ -7,6 +7,7 @@ This document is written as a research-style implementation report covering arch
 
 ## 1. Problem Statement
 
+
 Traditional hiring tools often suffer from: 
 
 - weak resume parsing (noisy extraction, inconsistent skills),
